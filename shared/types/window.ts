@@ -37,6 +37,14 @@ export interface WindowApi {
   isTaskbarLyricOpen: () => Promise<boolean>;
   /** 订阅任务栏歌词窗口开关状态变化 */
   onTaskbarLyricVisibilityChange: (callback: (open: boolean) => void) => () => void;
+  /** 切换副屏氛围屏窗口 */
+  toggleAmbiance: () => Promise<boolean>;
+  /** 关闭副屏氛围屏窗口 */
+  closeAmbiance: () => Promise<void>;
+  /** 查询副屏氛围屏窗口是否处于打开状态 */
+  isAmbianceOpen: () => Promise<boolean>;
+  /** 订阅副屏氛围屏窗口开关状态变化 */
+  onAmbianceVisibilityChange: (callback: (open: boolean) => void) => () => void;
   /** 最小化主窗口 */
   minimize: () => void;
   /** 切换最大化 / 还原 */

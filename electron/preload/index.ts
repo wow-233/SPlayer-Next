@@ -385,6 +385,15 @@ const api = {
     closeDesktopLyric: () => ipcRenderer.invoke("window:closeDesktopLyric"),
     // 查询桌面歌词窗口是否打开
     isDesktopLyricOpen: () => ipcRenderer.invoke("window:isDesktopLyricOpen"),
+    // 切换副屏氛围屏
+    toggleAmbiance: () => ipcRenderer.invoke("window:toggleAmbiance"),
+    // 关闭副屏氛围屏
+    closeAmbiance: () => ipcRenderer.invoke("window:closeAmbiance"),
+    // 查询副屏氛围屏是否打开
+    isAmbianceOpen: () => ipcRenderer.invoke("window:isAmbianceOpen"),
+    // 订阅副屏氛围屏开关状态
+    onAmbianceVisibilityChange: (callback: (open: boolean) => void) =>
+      subscribe<boolean>("ambiance:visibilityChange", callback),
     // 订阅桌面歌词窗口开关状态
     onDesktopLyricVisibilityChange: (callback: (open: boolean) => void) =>
       subscribe<boolean>("desktopLyric:visibilityChange", callback),
