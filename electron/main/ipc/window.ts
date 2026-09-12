@@ -23,6 +23,9 @@ import {
   closeTaskbarLyricWindow,
   getTaskbarLyricWindow,
   updateTaskbarLyricContentWidth,
+  toggleAmbianceWindow,
+  closeAmbianceWindow,
+  getAmbianceWindow,
   minimizeMainWindow,
   toggleMaximizeMainWindow,
   isMainWindowMaximized,
@@ -68,6 +71,15 @@ export const registerWindowIpc = (onStartupComplete: () => void): void => {
 
   // 查询桌面歌词窗口是否打开
   ipcMain.handle("window:isDesktopLyricOpen", () => !!getDesktopLyricWindow());
+
+  // 切换副屏氛围屏
+  ipcMain.handle("window:toggleAmbiance", () => toggleAmbianceWindow());
+
+  // 关闭副屏氛围屏
+  ipcMain.handle("window:closeAmbiance", () => closeAmbianceWindow());
+
+  // 查询副屏氛围屏是否打开
+  ipcMain.handle("window:isAmbianceOpen", () => !!getAmbianceWindow());
 
   // 锁定桌面歌词窗口高度
   ipcMain.handle("desktopLyric:setHeight", (_event, height: number) => {

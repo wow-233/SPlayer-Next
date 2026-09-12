@@ -1,0 +1,116 @@
+import { BrowserWindow, screen } from "electron";
+import { join } from "path";
+import { is } from "@electron-toolkit/utils";
+import { createWindow } from "./create";
+import { store } from "@main/store";
+import { broadcast } from "@main/utils/broadcast";
+import { isAppQuitting } from "@main/utils/lifecycle";
+import { setTrayAmbiance } from "@main/services/tray";
+import { coreLog } from "@main/utils/logger";
+
+let ambianceWindow: BrowserWindow | null = null;
+
+/**
+ * 选择目标显示器：优先「非主屏」（副屏），没有副屏时退回主屏
+ * @returns 目标显示器
+ */
+const pickTargetDisplay = (): Electron.Display => {
+  const primary = screen.getPrimaryDisplay();
+  const all = screen.getAllDisplays();
+  return all.find((display) => display.id !== primary.id) ?? primary;
+};
+
+/**
+ * 创建副屏氛围屏窗口（无边框、铺满目标显示器）
+ * 已存在则显示并聚焦
+ */
+export const createAmbianceWindow = (): BrowserWindow => {
+  if (ambianceWindow && !ambianceWindow.isDestroyed()) {
+    ambianceWindow.show();
+    ambianceWindow.focus();
+    return ambianceWindow;
+  }
+
+  const target = pickTargetDisplay();
+  const { x, y, width, height } = target.bounds;
+  coreLog.info(
+    `[ambiance] create display id=${target.id} bounds=${x},${y},${width}x${height} scale=${target.scaleFactor}`,
+  );
+  ambianceWindow = createWindow({
+    x,
+    y,
+    width,
+    height,
+    title: "SPlayer-Next - Ambiance",
+    frame: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreen: true,
+    fullscreenable: true,
+    skipTaskbar: true,
+    backgroundColor: "#0b0b0f",
+    webPreferences: {
+      images: true,
+      disableDialogs: true,
+      zoomFactor: 1.0,
+    },
+  });
+
+  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
+    ambianceWindow.loadURL(`${process.env["ELECTRON_RENDERER_URL"]}/windows/ambiance/index.html`);
+  } else {
+    ambianceWindow.loadFile(join(__dirname, "../renderer/windows/ambiance/index.html"));
+  }
+
+  ambianceWindow.webContents.on("did-finish-load", () => {
+    ambianceWindow?.webContents.setZoomFactor(1.0);
+  });
+
+  ambianceWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    coreLog.error(`[ambiance] did-fail-load code=${code} desc=${desc} url=${url}`);
+  });
+
+  ambianceWindow.once("ready-to-show", () => {
+    if (!ambianceWindow) return;
+    coreLog.info(`[ambiance] ready-to-show win=${JSON.stringify(ambianceWindow.getBounds())}`);
+    ambianceWindow.show();
+  });
+
+  broadcast("ambiance:visibilityChange", true);
+  setTrayAmbiance(true);
+  store.set("windowStates.ambiance.visible", true);
+
+  ambianceWindow.on("closed", () => {
+    ambianceWindow = null;
+    setTrayAmbiance(false);
+    if (!isAppQuitting()) {
+      broadcast("ambiance:visibilityChange", false);
+      store.set("windowStates.ambiance.visible", false);
+    }
+  });
+
+  return ambianceWindow;
+};
+
+/** 关闭氛围屏窗口 */
+export const closeAmbianceWindow = (): void => {
+  if (ambianceWindow && !ambianceWindow.isDestroyed()) ambianceWindow.close();
+};
+
+/** 切换氛围屏窗口，返回切换后的可见状态 */
+export const toggleAmbianceWindow = (): boolean => {
+  if (ambianceWindow && !ambianceWindow.isDestroyed()) {
+    closeAmbianceWindow();
+    return false;
+  }
+  createAmbianceWindow();
+  return true;
+};
+
+/** 获取氛围屏窗口实例 */
+export const getAmbianceWindow = (): BrowserWindow | null => {
+  if (ambianceWindow && !ambianceWindow.isDestroyed()) return ambianceWindow;
+  return null;
+};

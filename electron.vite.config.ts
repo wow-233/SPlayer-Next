@@ -100,6 +100,7 @@ export default defineConfig({
           "desktop-lyric": resolve(__dirname, "windows/desktop-lyric/index.html"),
           "dynamic-island": resolve(__dirname, "windows/dynamic-island/index.html"),
           "taskbar-lyric": resolve(__dirname, "windows/taskbar-lyric/index.html"),
+          ambiance: resolve(__dirname, "windows/ambiance/index.html"),
         },
       },
     },

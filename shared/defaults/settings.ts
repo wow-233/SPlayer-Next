@@ -194,6 +194,9 @@ export const defaultSystemConfig: SystemConfig = {
     taskbarLyric: {
       visible: false,
     },
+    ambiance: {
+      visible: false,
+    },
   },
   plugins: defaultPluginsConfig,
   hotkeys: defaultHotkeyConfig,

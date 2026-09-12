@@ -9,6 +9,7 @@ import {
   toggleDesktopLyricWindow,
   toggleDynamicIslandWindow,
   toggleTaskbarLyricWindow,
+  toggleAmbianceWindow,
   focusMainWindow,
 } from "@main/window";
 
@@ -23,6 +24,7 @@ let shuffleMode: ShuffleMode = "off";
 let desktopLyricOpen = false;
 let dynamicIslandOpen = false;
 let taskbarLyricOpen = false;
+let ambianceOpen = false;
 
 const repeatLabel = (mode: RepeatMode): string =>
   ({ list: t("repeatList"), one: t("repeatOne") })[mode];
@@ -129,6 +131,12 @@ const buildMenu = (): Menu => {
           },
         ]
       : []),
+    // 副屏氛围屏
+    {
+      label: ambianceOpen ? t("closeAmbiance") : t("openAmbiance"),
+      icon: menuIcon("lyric"),
+      click: () => toggleAmbianceWindow(),
+    },
     { type: "separator" },
     {
       label: t("quit"),
@@ -233,6 +241,13 @@ export const setTrayTaskbarLyric = (open: boolean): void => {
   if (!isWin) return;
   if (taskbarLyricOpen === open) return;
   taskbarLyricOpen = open;
+  refreshTray();
+};
+
+/** 同步副屏氛围屏开关状态到托盘 */
+export const setTrayAmbiance = (open: boolean): void => {
+  if (ambianceOpen === open) return;
+  ambianceOpen = open;
   refreshTray();
 };
 

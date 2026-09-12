@@ -18,6 +18,8 @@ interface MainMessages {
   openTaskbarLyric: string;
   closeTaskbarLyric: string;
   loginNetease: string;
+  openAmbiance: string;
+  closeAmbiance: string;
   quit: string;
 }
 
@@ -40,6 +42,8 @@ const messages: Record<LocaleCode, MainMessages> = {
     openTaskbarLyric: "开启任务栏歌词",
     closeTaskbarLyric: "关闭任务栏歌词",
     loginNetease: "登录 NCM",
+    openAmbiance: "开启副屏氛围屏",
+    closeAmbiance: "关闭副屏氛围屏",
     quit: "退出",
   },
   "en-US": {
@@ -60,6 +64,8 @@ const messages: Record<LocaleCode, MainMessages> = {
     openTaskbarLyric: "Open Taskbar Lyric",
     closeTaskbarLyric: "Close Taskbar Lyric",
     loginNetease: "Log in to NCM",
+    openAmbiance: "Open Ambiance Screen",
+    closeAmbiance: "Close Ambiance Screen",
     quit: "Quit",
   },
 };

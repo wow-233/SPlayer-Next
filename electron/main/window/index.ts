@@ -3,6 +3,7 @@ import { isWin } from "@main/utils/config";
 import { createDesktopLyricWindow } from "./desktopLyric";
 import { createDynamicIslandWindow } from "./dynamicIsland";
 import { createTaskbarLyricWindow } from "./taskbarLyric";
+import { createAmbianceWindow } from "./ambiance";
 
 export { createWindow } from "./create";
 export {
@@ -54,6 +55,12 @@ export {
   applyTaskbarLyricLayout,
   updateTaskbarLyricContentWidth,
 } from "./taskbarLyric";
+export {
+  createAmbianceWindow,
+  closeAmbianceWindow,
+  toggleAmbianceWindow,
+  getAmbianceWindow,
+} from "./ambiance";
 
 /** 恢复歌词相关窗口 */
 export const restoreLyricWindows = (): void => {
@@ -62,4 +69,5 @@ export const restoreLyricWindows = (): void => {
   if (isWin && store.get("windowStates.taskbarLyric.visible")) {
     createTaskbarLyricWindow();
   }
+  if (store.get("windowStates.ambiance.visible")) createAmbianceWindow();
 };

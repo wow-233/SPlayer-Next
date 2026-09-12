@@ -411,12 +411,18 @@ export interface TaskbarLyricWindowState {
   visible: boolean;
 }
 
+/** 副屏氛围屏窗口状态 */
+export interface AmbianceWindowState {
+  visible: boolean;
+}
+
 /** 窗口几何状态 */
 export interface WindowStates {
   main: MainWindowState;
   desktopLyric: DesktopLyricWindowState;
   dynamicIsland: DynamicIslandWindowState;
   taskbarLyric: TaskbarLyricWindowState;
+  ambiance: AmbianceWindowState;
 }
 
 /** 应用更新通道候选值，同时作为运行时校验名单 */
