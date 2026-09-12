@@ -60,6 +60,7 @@ export {
   closeAmbianceWindow,
   toggleAmbianceWindow,
   getAmbianceWindow,
+  refitAmbianceWindow,
 } from "./ambiance";
 
 /** 恢复歌词相关窗口 */

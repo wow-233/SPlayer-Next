@@ -28,6 +28,7 @@ import {
   applyDynamicIslandNotchFusion,
   applyDynamicIslandNonOcclusive,
   applyTaskbarLyricLayout,
+  refitAmbianceWindow,
 } from "@main/window";
 import { broadcast } from "@main/utils/broadcast";
 import { isWin } from "@main/utils/config";
@@ -145,6 +146,11 @@ const applyConfigChange = (keyPath: string, value: unknown): void => {
   // 任务栏歌词配置变更广播到所有窗口（仅 Windows）
   if (isWin && keyPath.startsWith("taskbarLyric.")) {
     broadcast("taskbarLyric:configChange", store.get("taskbarLyric"));
+  }
+  // 副屏氛围屏配置变更广播到所有窗口
+  if (keyPath.startsWith("ambiance.")) {
+    broadcast("ambiance:configChange", store.get("ambiance"));
+    if (keyPath === "ambiance.displayMode") refitAmbianceWindow();
   }
 };
 

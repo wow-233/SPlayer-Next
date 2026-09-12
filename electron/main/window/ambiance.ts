@@ -11,19 +11,27 @@ import { coreLog } from "@main/utils/logger";
 let ambianceWindow: BrowserWindow | null = null;
 
 /**
- * 选择目标显示器：优先「非主屏」（副屏），没有副屏时退回主屏
- * @returns 目标显示器
+ * 按设置里的 displayMode 选择目标显示器
+ * auto 优先副屏（非主屏）；secondary 无副屏时退回主屏
  */
 const pickTargetDisplay = (): Electron.Display => {
   const primary = screen.getPrimaryDisplay();
-  const all = screen.getAllDisplays();
-  return all.find((display) => display.id !== primary.id) ?? primary;
+  const secondary = screen.getAllDisplays().find((d) => d.id !== primary.id);
+  const mode = store.get("ambiance.displayMode");
+  if (mode === "primary") return primary;
+  return secondary ?? primary;
 };
 
-/**
- * 创建副屏氛围屏窗口（无边框、铺满目标显示器）
- * 已存在则显示并聚焦
- */
+/** 把窗口铺满目标显示器（无边框 + 真全屏） */
+const fitToDisplay = (win: BrowserWindow): void => {
+  const display = pickTargetDisplay();
+  if (win.isFullScreen()) win.setFullScreen(false);
+  win.setBounds(display.bounds);
+  win.setFullScreen(true);
+  coreLog.info(`[ambiance] fit display id=${display.id} win=${JSON.stringify(win.getBounds())}`);
+};
+
+/** 创建副屏氛围屏窗口（无边框、全屏铺满目标显示器） */
 export const createAmbianceWindow = (): BrowserWindow => {
   if (ambianceWindow && !ambianceWindow.isDestroyed()) {
     ambianceWindow.show();
@@ -31,16 +39,15 @@ export const createAmbianceWindow = (): BrowserWindow => {
     return ambianceWindow;
   }
 
-  const target = pickTargetDisplay();
-  const { x, y, width, height } = target.bounds;
+  const display = pickTargetDisplay();
   coreLog.info(
-    `[ambiance] create display id=${target.id} bounds=${x},${y},${width}x${height} scale=${target.scaleFactor}`,
+    `[ambiance] create display id=${display.id} scale=${display.scaleFactor} mode=${store.get("ambiance.displayMode")}`,
   );
   ambianceWindow = createWindow({
-    x,
-    y,
-    width,
-    height,
+    x: display.bounds.x,
+    y: display.bounds.y,
+    width: display.bounds.width,
+    height: display.bounds.height,
     title: "SPlayer-Next - Ambiance",
     frame: false,
     resizable: false,
@@ -65,16 +72,20 @@ export const createAmbianceWindow = (): BrowserWindow => {
   }
 
   ambianceWindow.webContents.on("did-finish-load", () => {
-    ambianceWindow?.webContents.setZoomFactor(1.0);
+    if (!ambianceWindow) return;
+    ambianceWindow.webContents.setZoomFactor(1.0);
+    fitToDisplay(ambianceWindow);
+    ambianceWindow.show();
   });
 
   ambianceWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
     coreLog.error(`[ambiance] did-fail-load code=${code} desc=${desc} url=${url}`);
   });
 
+  // ready-to-show 偶发不触发，这里仅作兜底
   ambianceWindow.once("ready-to-show", () => {
     if (!ambianceWindow) return;
-    coreLog.info(`[ambiance] ready-to-show win=${JSON.stringify(ambianceWindow.getBounds())}`);
+    fitToDisplay(ambianceWindow);
     ambianceWindow.show();
   });
 
@@ -92,6 +103,11 @@ export const createAmbianceWindow = (): BrowserWindow => {
   });
 
   return ambianceWindow;
+};
+
+/** 目标显示器变化时重新铺满（切换主/副屏后调用） */
+export const refitAmbianceWindow = (): void => {
+  if (ambianceWindow && !ambianceWindow.isDestroyed()) fitToDisplay(ambianceWindow);
 };
 
 /** 关闭氛围屏窗口 */

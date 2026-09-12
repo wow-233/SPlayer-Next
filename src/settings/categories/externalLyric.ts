@@ -382,12 +382,82 @@ const taskbarLyricSection: SettingSection = {
   ],
 };
 
+/** 副屏氛围屏（封面 + 歌词 + 翻译） */
+const ambianceSection: SettingSection = {
+  id: "ambiance",
+  tag: { text: "Beta" },
+  items: [
+    {
+      key: "ambianceEnabled",
+      type: "switch",
+      binding: { store: "settings", path: "isAmbianceOpen" },
+      defaultValue: false,
+    },
+    {
+      key: "ambianceDisplayMode",
+      type: "select",
+      binding: { store: "settings", path: "system.ambiance.displayMode" },
+      options: [
+        { value: "auto", labelKey: "settings.ambianceDisplayMode.auto" },
+        { value: "primary", labelKey: "settings.ambianceDisplayMode.primary" },
+        { value: "secondary", labelKey: "settings.ambianceDisplayMode.secondary" },
+      ],
+      defaultValue: "auto",
+    },
+    {
+      key: "ambianceShowCover",
+      type: "switch",
+      binding: { store: "settings", path: "system.ambiance.showCover" },
+      defaultValue: true,
+    },
+    {
+      key: "ambianceShowTranslation",
+      type: "switch",
+      binding: { store: "settings", path: "system.ambiance.showTranslation" },
+      defaultValue: true,
+    },
+    {
+      key: "ambianceShowPreviousLine",
+      type: "switch",
+      binding: { store: "settings", path: "system.ambiance.showPreviousLine" },
+      defaultValue: true,
+    },
+    {
+      key: "ambianceShowNextLine",
+      type: "switch",
+      binding: { store: "settings", path: "system.ambiance.showNextLine" },
+      defaultValue: true,
+    },
+    {
+      key: "ambianceFontScale",
+      type: "slider",
+      binding: { store: "settings", path: "system.ambiance.fontScale" },
+      min: 0.6,
+      max: 2,
+      step: 0.05,
+      defaultValue: 1,
+      marks: { 0.6: "60%", 1: "100%", 2: "200%" },
+    },
+    {
+      key: "ambianceBackgroundBlur",
+      type: "slider",
+      binding: { store: "settings", path: "system.ambiance.backgroundBlur" },
+      min: 0,
+      max: 100,
+      step: 4,
+      defaultValue: 48,
+      marks: { 0: "0", 48: "48", 100: "100" },
+    },
+  ],
+};
+
 const externalLyricCategory: SettingCategory = {
   id: "externalLyric",
   icon: IconLucideMonitor,
   sections: [
     desktopLyricSection,
     dynamicIslandSection,
+    ambianceSection,
     // taskbarLyric 仅 Windows 可用
     ...(navigator.platform.startsWith("Win") ? [taskbarLyricSection] : []),
   ],

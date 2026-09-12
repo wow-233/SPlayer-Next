@@ -39,9 +39,12 @@ const mockWindowApi = {
     onDesktopLyricVisibilityChange: vi.fn(() => () => {}),
     onDynamicIslandVisibilityChange: vi.fn(() => () => {}),
     onTaskbarLyricVisibilityChange: vi.fn(() => () => {}),
+    onAmbianceVisibilityChange: vi.fn(() => () => {}),
+    onAmbianceConfigChange: vi.fn(() => () => {}),
     isDesktopLyricOpen: vi.fn().mockResolvedValue(false),
     isDynamicIslandOpen: vi.fn().mockResolvedValue(false),
     isTaskbarLyricOpen: vi.fn().mockResolvedValue(false),
+    isAmbianceOpen: vi.fn().mockResolvedValue(false),
   },
 };
 
