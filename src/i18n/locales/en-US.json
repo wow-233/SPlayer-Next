@@ -798,6 +798,7 @@
       "lyricContent": "Lyric Content",
       "lyricTTML": "TTML Lyrics",
       "lyricExclude": "Metadata Stripping",
+      "ambiance": "Ambiance Screen",
       "lyricGeneral": "Content & Style",
       "lyricDisplay": "Display Effects",
       "lyricAMLLOptimize": "Lyric Optimization",
@@ -1403,6 +1404,38 @@
     "desktopLyricEnabled": {
       "label": "Enable Desktop Lyric",
       "description": "Show a floating lyric window on desktop"
+    },
+    "ambianceEnabled": {
+      "label": "Enable Ambiance Screen",
+      "description": "Full-screen cover + lyrics on the secondary display"
+    },
+    "ambianceDisplayMode": {
+      "label": "Target Display",
+      "auto": "Auto (prefer secondary)",
+      "primary": "Primary",
+      "secondary": "Secondary"
+    },
+    "ambianceShowCover": {
+      "label": "Show Cover",
+      "description": "Show album cover and song info on the left"
+    },
+    "ambianceShowTranslation": {
+      "label": "Show Translation",
+      "description": "Show translation under the lyric line"
+    },
+    "ambianceShowPreviousLine": {
+      "label": "Show Previous Line"
+    },
+    "ambianceShowNextLine": {
+      "label": "Show Next Line"
+    },
+    "ambianceFontScale": {
+      "label": "Font Scale",
+      "description": "Overall lyric font size ratio"
+    },
+    "ambianceBackgroundBlur": {
+      "label": "Background Blur",
+      "description": "Blur strength of the cover background (px)"
     },
     "desktopLyricFontSize": {
       "label": "Font Size",

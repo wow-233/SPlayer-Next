@@ -394,6 +394,9 @@ const api = {
     // 订阅副屏氛围屏开关状态
     onAmbianceVisibilityChange: (callback: (open: boolean) => void) =>
       subscribe<boolean>("ambiance:visibilityChange", callback),
+    // 订阅副屏氛围屏配置变更
+    onAmbianceConfigChange: (callback: (settings: unknown) => void) =>
+      subscribe("ambiance:configChange", callback),
     // 订阅桌面歌词窗口开关状态
     onDesktopLyricVisibilityChange: (callback: (open: boolean) => void) =>
       subscribe<boolean>("desktopLyric:visibilityChange", callback),

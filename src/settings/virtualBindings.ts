@@ -39,4 +39,13 @@ export const virtualBindings: Record<string, VirtualBinding> = {
       window.api.window.toggleTaskbarLyric().catch(() => {});
     },
   },
+  /** 副屏氛围屏窗口 */
+  isAmbianceOpen: {
+    get: () => useSettingsStore().isAmbianceOpen,
+    set: (v) => {
+      const store = useSettingsStore();
+      if (v === store.isAmbianceOpen) return;
+      window.api.window.toggleAmbiance().catch(() => {});
+    },
+  },
 };

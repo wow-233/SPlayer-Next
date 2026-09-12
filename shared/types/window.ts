@@ -1,4 +1,9 @@
-import type { DesktopLyricSettings, DynamicIslandSettings, TaskbarLyricSettings } from "./settings";
+import type {
+  DesktopLyricSettings,
+  DynamicIslandSettings,
+  TaskbarLyricSettings,
+  AmbianceSettings,
+} from "./settings";
 
 /** 窗口管理 API */
 export interface WindowApi {
@@ -45,6 +50,8 @@ export interface WindowApi {
   isAmbianceOpen: () => Promise<boolean>;
   /** 订阅副屏氛围屏窗口开关状态变化 */
   onAmbianceVisibilityChange: (callback: (open: boolean) => void) => () => void;
+  /** 订阅副屏氛围屏配置变更 */
+  onAmbianceConfigChange: (callback: (settings: AmbianceSettings) => void) => () => void;
   /** 最小化主窗口 */
   minimize: () => void;
   /** 切换最大化 / 还原 */

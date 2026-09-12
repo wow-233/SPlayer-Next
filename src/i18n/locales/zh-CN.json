@@ -798,6 +798,7 @@
       "lyricContent": "歌词内容",
       "lyricTTML": "TTML 歌词",
       "lyricExclude": "歌词排除",
+      "ambiance": "副屏氛围屏",
       "lyricGeneral": "内容样式",
       "lyricDisplay": "显示效果",
       "lyricAMLLOptimize": "歌词优化",
@@ -1403,6 +1404,38 @@
     "desktopLyricEnabled": {
       "label": "开启桌面歌词",
       "description": "在桌面显示一个独立的歌词悬浮窗口"
+    },
+    "ambianceEnabled": {
+      "label": "开启副屏氛围屏",
+      "description": "在副屏全屏显示封面与歌词（氛围展示）"
+    },
+    "ambianceDisplayMode": {
+      "label": "目标显示器",
+      "auto": "自动（优先副屏）",
+      "primary": "主屏",
+      "secondary": "副屏"
+    },
+    "ambianceShowCover": {
+      "label": "显示封面",
+      "description": "在氛围屏左侧显示专辑封面与歌名"
+    },
+    "ambianceShowTranslation": {
+      "label": "显示翻译",
+      "description": "在歌词下方显示翻译"
+    },
+    "ambianceShowPreviousLine": {
+      "label": "显示上一句"
+    },
+    "ambianceShowNextLine": {
+      "label": "显示下一句"
+    },
+    "ambianceFontScale": {
+      "label": "字号缩放",
+      "description": "整体歌词字号比例"
+    },
+    "ambianceBackgroundBlur": {
+      "label": "背景模糊强度",
+      "description": "封面背景的模糊程度（像素）"
     },
     "desktopLyricFontSize": {
       "label": "字号",

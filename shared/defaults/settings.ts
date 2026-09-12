@@ -95,6 +95,15 @@ export const defaultSystemConfig: SystemConfig = {
     fontWeight: 400,
     fontFamily: "",
   },
+  ambiance: {
+    showTranslation: true,
+    showNextLine: true,
+    showPreviousLine: true,
+    fontScale: 1,
+    backgroundBlur: 48,
+    showCover: true,
+    displayMode: "auto",
+  },
   lyric: {
     enableOnlineTTMLLyric: false,
     amllDbServer: "",

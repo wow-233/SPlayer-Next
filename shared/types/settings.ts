@@ -416,6 +416,24 @@ export interface AmbianceWindowState {
   visible: boolean;
 }
 
+/** 副屏氛围屏设置 */
+export interface AmbianceSettings {
+  /** 显示翻译 */
+  showTranslation: boolean;
+  /** 显示下一句 */
+  showNextLine: boolean;
+  /** 显示上一句 */
+  showPreviousLine: boolean;
+  /** 字号缩放 */
+  fontScale: number;
+  /** 背景模糊强度（px） */
+  backgroundBlur: number;
+  /** 显示封面 */
+  showCover: boolean;
+  /** 目标显示器 */
+  displayMode: "auto" | "primary" | "secondary";
+}
+
 /** 窗口几何状态 */
 export interface WindowStates {
   main: MainWindowState;
@@ -459,6 +477,8 @@ export interface SystemConfig {
   dynamicIsland: DynamicIslandSettings;
   /** 任务栏歌词配置（仅 Windows） */
   taskbarLyric: TaskbarLyricSettings;
+  /** 副屏氛围屏配置 */
+  ambiance: AmbianceSettings;
   /** 在线歌词服务配置 */
   lyric: OnlineLyricSettings;
   /** 本地歌词配置 */

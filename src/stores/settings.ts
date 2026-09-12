@@ -252,6 +252,9 @@ export const useSettingsStore = defineStore(
     /** 任务栏歌词窗口是否打开；由主进程广播 */
     const isTaskbarLyricOpen = ref(false);
 
+    /** 副屏氛围屏窗口是否打开；由主进程广播 */
+    const isAmbianceOpen = ref(false);
+
     /**
      * 深合并：嵌套对象原地 mutate，叶子值不变就不写
      * 避免浅 Object.assign 替换嵌套引用，导致依赖路径的 watcher 误触
@@ -307,6 +310,14 @@ export const useSettingsStore = defineStore(
       window.api.window.onTaskbarLyricVisibilityChange((open) => {
         isTaskbarLyricOpen.value = open;
       }),
+      // 订阅副屏氛围屏窗口开关状态
+      window.api.window.onAmbianceVisibilityChange((open) => {
+        isAmbianceOpen.value = open;
+      }),
+      // 订阅副屏氛围屏配置变化
+      window.api.window.onAmbianceConfigChange((next) => {
+        Object.assign(system.ambiance, next as object);
+      }),
     ];
 
     onScopeDispose(() => {
@@ -331,6 +342,12 @@ export const useSettingsStore = defineStore(
       .isTaskbarLyricOpen()
       .then((open) => {
         isTaskbarLyricOpen.value = open;
+      })
+      .catch(() => {});
+    window.api.window
+      .isAmbianceOpen()
+      .then((open) => {
+        isAmbianceOpen.value = open;
       })
       .catch(() => {});
 
@@ -373,6 +390,7 @@ export const useSettingsStore = defineStore(
       isDesktopLyricOpen,
       isDynamicIslandOpen,
       isTaskbarLyricOpen,
+      isAmbianceOpen,
       syncSystem,
       setSystem,
       afterLocalChange,
