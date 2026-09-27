@@ -1,12 +1,12 @@
 import type { PluginsConfig } from "../types/plugin";
 
 /** 当前 Host API 级别；插件 `@apiLevel` 必须 ≤ 此值才加载 */
-export const HOST_API_LEVEL = 3;
+export const HOST_API_LEVEL = 4;
 
 /** 各动作的默认超时（毫秒）。新增动作时在此追加。 */
 export const ACTION_TIMEOUTS = {
   musicUrl: 20_000,
-  menuClick: 15_000,
+  menuClick: 30_000,
   musicSearch: 15_000,
   musicLyric: 15_000,
   musicPic: 15_000,

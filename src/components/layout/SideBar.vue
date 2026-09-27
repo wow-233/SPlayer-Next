@@ -18,6 +18,7 @@ import IconLucidePlus from "~icons/lucide/plus";
 import IconLucideChevronDown from "~icons/lucide/chevron-down";
 import IconLucideEyeOff from "~icons/lucide/eye-off";
 import IconLucideSettings2 from "~icons/lucide/settings-2";
+import IconLucideUsersRound from "~icons/lucide/users-round";
 import IconSpHeartMode from "~icons/sp/heart-mode";
 import SButton from "@/components/ui/SButton.vue";
 import SPopselect from "@/components/ui/SPopselect.vue";
@@ -210,6 +211,11 @@ const navItems = computed<SMenuItem[]>(() => {
       });
     }
     merged.push(...segment.items);
+  });
+  merged.push({
+    key: "/listen-together",
+    label: "多人一起听",
+    icon: markRaw(IconLucideUsersRound),
   });
   return merged;
 });

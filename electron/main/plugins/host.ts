@@ -6,6 +6,7 @@
  */
 
 import type { HostCallMethod, HostRequestOptions, PluginGrant } from "@shared/types/plugin";
+import type { Track } from "@shared/types/player";
 import { PluginErrorCodes } from "@shared/defaults/plugin-api";
 import { coreLog } from "@main/utils/logger";
 import { pluginHost } from "./host-process";
@@ -17,6 +18,20 @@ import {
   pluginStorageSet,
 } from "./storage";
 import { playerControl } from "@main/services/playerControl";
+import { callNetease } from "@main/apis/netease";
+
+const PLUGIN_NETEASE_APIS = new Set([
+  "listentogether_multi_room_create",
+  "listentogether_multi_match_ack",
+  "listentogether_multi_heartbeat",
+  "listentogether_multi_match_exit",
+  "listentogether_multi_song_operate",
+  "listentogether_multi_match_status_get",
+  "listentogether_multi_match_msg_history",
+  "listentogether_security_token",
+  "song_detail",
+  "user_account",
+]);
 
 /** 处理一次 plugin→host 调用 */
 export const dispatchHostCall = async (
@@ -36,6 +51,12 @@ export const dispatchHostCall = async (
     if (method.startsWith("player.") && !grant.includes("control")) {
       coreLog.warn(`[plugin:${pluginId}] 缺少 "control" 权限，拒绝调用 ${method}`);
       throw Object.assign(new Error(`plugin "${pluginId}" lacks "control" grant`), {
+        code: PluginErrorCodes.PERMISSION_DENIED,
+      });
+    }
+    if (method === "netease.call" && !grant.includes("netease")) {
+      coreLog.warn(`[plugin:${pluginId}] 缺少 "netease" 权限，拒绝调用 ${method}`);
+      throw Object.assign(new Error(`plugin "${pluginId}" lacks "netease" grant`), {
         code: PluginErrorCodes.PERMISSION_DENIED,
       });
     }
@@ -92,6 +113,49 @@ export const dispatchHostCall = async (
       case "player.getPosition":
         data = playerControl.getPosition();
         break;
+      case "player.playTrack": {
+        const track = args[0] as Track | undefined;
+        if (
+          track &&
+          typeof track === "object" &&
+          typeof track.id === "string" &&
+          typeof track.title === "string" &&
+          track.source === "netease" &&
+          Array.isArray(track.artists) &&
+          Number.isFinite(track.duration)
+        ) {
+          if (pluginId === "splayer.netease-together") playerControl.playRoomTrack(track);
+          else playerControl.playTrack(track);
+          data = undefined;
+        } else {
+          throw Object.assign(new Error("invalid track for playTrack"), {
+            code: PluginErrorCodes.HANDLER_ERROR,
+          });
+        }
+        break;
+      }
+      case "netease.call": {
+        const name = String(args[0] ?? "");
+        if (!PLUGIN_NETEASE_APIS.has(name)) {
+          throw Object.assign(new Error(`netease api not available to plugins: ${name}`), {
+            code: PluginErrorCodes.PERMISSION_DENIED,
+          });
+        }
+        const params = args[1];
+        if (
+          params !== undefined &&
+          (typeof params !== "object" || params === null || Array.isArray(params))
+        ) {
+          throw Object.assign(new Error("invalid netease params"), {
+            code: PluginErrorCodes.HANDLER_ERROR,
+          });
+        }
+        const safeParams = { ...((params ?? {}) as Record<string, unknown>) };
+        delete safeParams.cookie;
+        const res = await callNetease(name, safeParams);
+        data = { status: res.status, body: res.body };
+        break;
+      }
       default:
         throw Object.assign(new Error(`unknown host method: ${method}`), {
           code: PluginErrorCodes.UNKNOWN,

@@ -108,7 +108,7 @@ export const invokeMenu = async (args: PluginInvokeMenuArgs): Promise<MenuClickR
       code: PluginErrorCodes.NOT_READY,
     });
   }
-  const params: MenuClickReq = { menuId: args.menuId, track: args.track };
+  const params: MenuClickReq = { menuId: args.menuId, track: args.track, data: args.data };
   return await callOn<MenuClickRes>(rt, "menuClick", params, ACTION_TIMEOUTS.menuClick);
 };
 

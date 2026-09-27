@@ -8,6 +8,7 @@ import { useTrackMenu } from "@/composables/useTrackMenu";
 import { useDownload } from "@/composables/useDownload";
 import { useProgressLyric } from "@/composables/useProgressLyric";
 import * as player from "@/core/player";
+import { togetherRoom } from "@/services/listenTogether";
 import IconFavorite from "~icons/material-symbols/favorite-rounded";
 import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideMoreHorizontal from "~icons/lucide/more-horizontal";
@@ -98,6 +99,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
       </div>
       <SSlider
         :model-value="position"
+        :disabled="togetherRoom.inRoom"
         :min="0"
         :max="duration"
         :step="100"
@@ -119,6 +121,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
     <div class="absolute left-0 right-0 top-0 -translate-y-1/2 z-10">
       <SSlider
         :model-value="position"
+        :disabled="togetherRoom.inRoom"
         :min="0"
         :max="duration"
         :step="100"

@@ -86,7 +86,12 @@ export const onEvent = (handler: (event: MediaEvent) => void): void => {
 };
 
 /** 更新歌曲元数据 */
-export const setMetadata = (param: MetadataParam): void => safeCall(() => mc?.setMetadata(param));
+export const setMetadata = (param: MetadataParam): void =>
+  safeCall(() => {
+    // 兼容 1.1.x 原生模块使用的单值 artist 字段，新版模块会忽略该额外字段。
+    const payload = { ...param, artist: param.artists.join(" / ") };
+    mc?.setMetadata(payload);
+  });
 
 /** 更新播放状态 */
 export const setPlayState = (param: PlayStateParam): void =>

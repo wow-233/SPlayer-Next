@@ -137,7 +137,16 @@ export const registerPluginIpc = (): void => {
   ipcMain.handle("plugin:invokeMenu", async (_evt, args) => {
     try {
       const res = await invokeMenu(args);
-      return { ok: true, toast: res?.toast, openUrl: res?.openUrl, copyText: res?.copyText };
+      if (res?.error) {
+        return { ok: false, error: res.error, data: res.data };
+      }
+      return {
+        ok: true,
+        toast: res?.toast,
+        openUrl: res?.openUrl,
+        copyText: res?.copyText,
+        data: res?.data,
+      };
     } catch (err) {
       coreLog.warn("[plugin] invokeMenu failed:", err);
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

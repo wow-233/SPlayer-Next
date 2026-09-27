@@ -130,12 +130,36 @@ splayer.player.on("lineChange", ({ index }) => {
 | `player.seek(positionMs)`  | 跳转到指定毫秒位置                      |
 | `player.setVolume(volume)` | 设置音量，`volume ∈ [0, 1]`             |
 | `player.getPosition()`     | `Promise<number>`，查询当前进度（毫秒） |
+| `player.playTrack(track)`  | 加载并播放指定曲目（需 `@apiLevel 4`）  |
 
 以上控制方法（除 `getPosition`）均为「即发即忘」，不返回结果；非法入参（如负的 `seek`、越界音量）会被宿主忽略。
 
 ::: tip getPosition 的正确用法
 `getPosition()` 每次调用都有一次往返开销，**仅用于偶发的一次性查询**。需要持续跟踪进度时，请直接读 `lineChange` / `playStateChange` 载荷里已经带上的 `position`，不要高频轮询 `getPosition`。
 :::
+
+## 宿主网易云接口桥接
+
+声明 `@grant netease` 后，控制插件可通过 `splayer.netease.call(name, params)` 调用宿主主进程的网易云接口，**自动复用当前登录态（Cookie）、加密与系统代理**，无需插件自行处理登录。
+
+```js
+/**
+ * @name     示例
+ * @version  1.0.0
+ * @type     control
+ * @apiLevel 4
+ * @grant    netease
+ */
+splayer.register({});
+
+const res = await splayer.netease.call("song_detail", { ids: "123,456" });
+splayer.log.info(res.status, res.body);
+```
+
+- 当前只开放多人一起听接口，以及 `song_detail`、`user_account`；其余模块以 `PLUGIN_PERMISSION_DENIED` 拒绝。插件无法传入自己的 Cookie，调用始终使用宿主登录态。
+- 返回 `{ status, body }`，与主进程 `callNetease` 一致。
+- 未声明 `@grant netease` 时调用以 `PLUGIN_PERMISSION_DENIED` 失败。
+- 该能力属于 API level 4，脚本头部需声明 `@apiLevel 4`。
 
 ## 设置项
 

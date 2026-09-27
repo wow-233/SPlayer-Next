@@ -2016,7 +2016,11 @@
       "grant": {
         "network": { "label": "Network", "desc": "Can make network requests" },
         "control": { "label": "Control", "desc": "Can control the player" },
-        "ui": { "label": "Interface", "desc": "Can extend or modify the app interface" }
+        "ui": { "label": "Interface", "desc": "Can extend or modify the app interface" },
+        "netease": {
+          "label": "NetEase",
+          "desc": "Can call the host's NetEase APIs with the current login"
+        }
       }
     },
     "pluginManager": {
@@ -2262,6 +2266,34 @@
     "noPlayHistory": "No listening-hour data yet",
     "listeningActivity": "Listening Activity",
     "last90Days": "Last 90 days"
+  },
+  "listenTogether": {
+    "title": "Group Listen Together",
+    "description": "Use official NetEase group rooms that mobile and other SPlayer clients can join",
+    "pluginUnavailable": "The Listen Together plugin is unavailable. Check it in plugin settings.",
+    "connected": "Joined an official group room",
+    "roomId": "Room {id}",
+    "memberCount": "{count} online",
+    "playlistCount": "{count} songs",
+    "playing": "Playing",
+    "paused": "Paused",
+    "currentTrack": "Current player track",
+    "noTrack": "No track is playing",
+    "copyInvite": "Copy group invite link",
+    "pushCurrent": "Add to room queue",
+    "playForRoom": "Switch everyone to this track",
+    "neteaseTrackHint": "Play an online NetEase track first",
+    "leave": "Leave group room",
+    "startHint": "Play a NetEase track, then create an official group room and copy its invite in one click.",
+    "createWith": "First track in the room",
+    "create": "Create group room",
+    "orJoin": "Join a friend's group room",
+    "roomLinkPlaceholder": "Or paste a group invite link here",
+    "paste": "Paste",
+    "pasteAndJoin": "Paste from clipboard and join",
+    "join": "Join room",
+    "roomLinkRequired": "Paste a group Listen Together invite link first",
+    "clipboardFailed": "Could not read the clipboard"
   },
   "errors": {
     "dialogTitle": "Something went wrong",

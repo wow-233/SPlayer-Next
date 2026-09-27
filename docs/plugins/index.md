@@ -125,27 +125,29 @@ SPlayer-Next 内置一套插件系统，允许用第三方 JavaScript 扩展应�
 
 宿主按权限放行插件的敏感能力：
 
-| 权限      | 门控的 API            | 说明                   |
-| --------- | --------------------- | ---------------------- |
-| `network` | `splayer.request`     | 发起网络请求           |
-| `control` | `splayer.player.*`    | 反向控制播放器         |
-| `ui`      | `register({ menus })` | 向歌曲菜单等界面添加项 |
+| 权限      | 门控的 API             | 说明                                 |
+| --------- | ---------------------- | ------------------------------------ |
+| `network` | `splayer.request`      | 发起网络请求                         |
+| `control` | `splayer.player.*`     | 反向控制播放器                       |
+| `ui`      | `register({ menus })`  | 向歌曲菜单等界面添加项               |
+| `netease` | `splayer.netease.call` | 调用宿主网易云接口（复用当前登录态） |
 
 - **音源插件**（`@type source`，含缺省）**自动获得 `network`**，无需声明——联网解析 URL 是其本职。
-- **控制插件**（`@type control`）要联网（如把当前曲目/歌词推给外部服务）必须声明 `@grant network`；要反向控制播放器必须声明 `@grant control`；要向歌曲菜单添加菜单项必须声明 `@grant ui`（详见 [控制插件 · 菜单扩展](/plugins/control#菜单扩展)）。
-- 未授予对应权限时，`splayer.request` 以 `PLUGIN_PERMISSION_DENIED` 失败，`splayer.player.*` 调用被忽略，未授权的 `menus` 声明会被丢弃。
+- **控制插件**（`@type control`）要联网（如把当前曲目/歌词推给外部服务）必须声明 `@grant network`；要反向控制播放器必须声明 `@grant control`；要向歌曲菜单添加菜单项必须声明 `@grant ui`（详见 [控制插件 · 菜单扩展](/plugins/control#菜单扩展)）；要调用宿主允许的网易云接口（如多人一起听与歌曲详情）必须声明 `@grant netease`。
+- 未授予对应权限时，`splayer.request` 以 `PLUGIN_PERMISSION_DENIED` 失败，`splayer.player.*` 调用被忽略，`splayer.netease.call` 以 `PLUGIN_PERMISSION_DENIED` 失败，未授权的 `menus` 声明会被丢弃。
 
 ## API 级别与变更记录
 
 `@apiLevel` 声明插件需要的宿主能力级别。能力是**累加**的：高级别包含低级别的全部能力，新增能力会提升级别。这里是插件 API 级别的唯一变更记录；其它页面只说明具体能力要求的最低级别。
 
-| 级别 | 相对上一等级新增的能力                                                                                                                                                                  | 用到这些能力时                                  |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `1`  | 基础音源能力：`register({ sources })`、`musicUrl` 处理器；元数据兜底处理器：`musicSearch` / `musicLyric` / `musicPic`；通用 API：`request` / `storage` / `log` / `getSetting` / `utils` | 播放地址、歌词、封面插件声明 `@apiLevel 1` 即可 |
-| `2`  | 控制能力：`register({ events, controls, settings })`、`splayer.player` 事件订阅与反向控制、`onSettingChange`；界面能力：`register({ menus })`、`menuClick` 处理器（需 `@grant ui`）     | 控制插件或菜单扩展声明 `@apiLevel 2`            |
-| `3`  | 评论能力：`musicComment` 处理器。宿主先用 `musicSearch` 匹配曲目，再向声明了 `musicComment` 的源请求热门 / 最新评论                                                                     | 评论插件能力声明 `@apiLevel 3`                  |
+| 级别 | 相对上一等级新增的能力                                                                                                                                                                  | 用到这些能力时                                     |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `1`  | 基础音源能力：`register({ sources })`、`musicUrl` 处理器；元数据兜底处理器：`musicSearch` / `musicLyric` / `musicPic`；通用 API：`request` / `storage` / `log` / `getSetting` / `utils` | 播放地址、歌词、封面插件声明 `@apiLevel 1` 即可    |
+| `2`  | 控制能力：`register({ events, controls, settings })`、`splayer.player` 事件订阅与反向控制、`onSettingChange`；界面能力：`register({ menus })`、`menuClick` 处理器（需 `@grant ui`）     | 控制插件或菜单扩展声明 `@apiLevel 2`               |
+| `3`  | 评论能力：`musicComment` 处理器。宿主先用 `musicSearch` 匹配曲目，再向声明了 `musicComment` 的源请求热门 / 最新评论                                                                     | 评论插件能力声明 `@apiLevel 3`                     |
+| `4`  | 加载能力：`splayer.player.playTrack(track)`（加载并播放指定曲目）；宿主桥接：`splayer.netease.call(name, params)`（复用当前登录态调用宿主网易云接口，需 `@grant netease`）              | 一起听等需要加载指定曲目或复用登录态的能力声明 `4` |
 
-当前宿主级别为 **3**。规则：
+当前宿主级别为 **4**。规则：
 
 - 声明值**必须 ≤ 当前宿主级别**，否则拒绝加载并报 `PLUGIN_API_LEVEL_MISMATCH`（需等应用升级）；
 - 声明你实际用到的**最低**级别即可——只做播放地址 / 歌词 / 封面写 `1`，用到任何控制能力写 `2`，用到评论能力写 `3`；

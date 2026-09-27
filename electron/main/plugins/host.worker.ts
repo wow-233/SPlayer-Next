@@ -281,6 +281,16 @@ const buildSplayer = (record: PluginContextRecord, spec: LoadSpec): HostApi => (
     setVolume: (volume: number) =>
       void hostCall(record, "player.setVolume", [volume]).catch(() => {}),
     getPosition: () => hostCall(record, "player.getPosition", []) as Promise<number>,
+    playTrack: (track: unknown) =>
+      void hostCall(record, "player.playTrack", [track]).catch(() => {}),
+  },
+
+  netease: {
+    call: <T = unknown>(name: string, params?: Record<string, unknown>) =>
+      hostCall(record, "netease.call", [name, params ?? {}]) as Promise<{
+        status: number;
+        body: T;
+      }>,
   },
 
   onSettingChange: (key: string, handler: (value: unknown) => void) => {

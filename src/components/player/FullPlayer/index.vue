@@ -15,6 +15,7 @@ import Lyrics from "@/components/player/Lyrics/index.vue";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
+import { togetherRoom } from "@/services/listenTogether";
 import IconFavorite from "~icons/material-symbols/favorite-rounded";
 import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideListPlus from "~icons/lucide/list-plus";
@@ -117,6 +118,7 @@ const coverCentered = computed(() => {
 });
 
 const handleLyricSeek = async (timeMs: number): Promise<void> => {
+  if (togetherRoom.value.inRoom) return;
   await player.seek(timeMs);
   if (!isPlaying.value) await player.play();
 };
@@ -412,6 +414,7 @@ const showComments = (): void => {
                 type="cover"
                 variant="ghost"
                 circle
+                :disabled="togetherRoom.inRoom"
                 @click="
                   fmMode
                     ? player.dislikeFmTrack()
@@ -465,7 +468,7 @@ const showComments = (): void => {
                 type="cover"
                 variant="ghost"
                 circle
-                :disabled="fmMode"
+                :disabled="fmMode || togetherRoom.inRoom"
                 :class="fmMode ? 'opacity-40' : 'opacity-100'"
                 @click="player.cycleRepeatMode()"
               >
@@ -485,6 +488,7 @@ const showComments = (): void => {
               </span>
               <SSlider
                 :model-value="position"
+                :disabled="togetherRoom.inRoom"
                 :min="0"
                 :max="duration"
                 :step="100"

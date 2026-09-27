@@ -36,6 +36,8 @@ export const playerControl = {
     sendToMain("player:event", { type: "setRepeat", data: { mode } }),
   playTrack: (track: Track): void =>
     sendToMain("player:event", { type: "playTrack", data: { track } }),
+  playRoomTrack: (track: Track): void =>
+    sendToMain("player:event", { type: "roomTrack", data: { track } }),
   addToQueue: (tracks: Track[], position: "next" | "end"): void =>
     sendToMain("player:event", { type: "addToQueue", data: { tracks, position } }),
   seek,

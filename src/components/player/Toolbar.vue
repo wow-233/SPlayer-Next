@@ -3,6 +3,7 @@ import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import * as player from "@/core/player";
+import { togetherRoom } from "@/services/listenTogether";
 import IconLucideSliders from "~icons/lucide/sliders-horizontal";
 import IconLucideGauge from "~icons/lucide/gauge";
 import IconLucideMoreVertical from "~icons/lucide/more-vertical";
@@ -60,6 +61,13 @@ const speedOpen = ref(false);
 const autoCloseOpen = ref(false);
 const abLoopOpen = ref(false);
 const fmModeOpen = ref(false);
+const router = useRouter();
+const openTogetherPage = (): void => {
+  status.fullQueueOpen = false;
+  status.outerQueueOpen = false;
+  status.isPlayerExpanded = false;
+  void router.push("/listen-together");
+};
 
 const moreMenuItems = computed<DropdownMenuItem[]>(() => [
   { key: "audioInfo", label: t("quality.outputInfo"), icon: IconLucideAudioWaveform },
@@ -148,11 +156,24 @@ const onMoreMenuSelect = (key: string): void => {
       circle
       size="large"
       :class="status.fullQueueOpen ? undefined : mutedClass"
-      @click="status.fullQueueOpen = !status.fullQueueOpen"
+      @click="
+        togetherRoom.inRoom ? openTogetherPage() : (status.fullQueueOpen = !status.fullQueueOpen)
+      "
     >
       <template #icon><IconLucideListMusic /></template>
     </SButton>
     <!-- 常规播放列表气泡 -->
+    <SButton
+      v-else-if="togetherRoom.inRoom"
+      :type="buttonType"
+      variant="ghost"
+      circle
+      size="large"
+      title="房间待播列表"
+      @click="openTogetherPage"
+    >
+      <template #icon><IconLucideListMusic /></template>
+    </SButton>
     <SPopover
       v-else
       v-model:open="status.outerQueueOpen"
@@ -174,6 +195,18 @@ const onMoreMenuSelect = (key: string): void => {
       </template>
       <QueuePopover @close="status.outerQueueOpen = false" />
     </SPopover>
+    <!-- 网易云官方一起听 -->
+    <SButton
+      :type="togetherRoom.inRoom ? (cover ? 'cover' : 'primary') : buttonType"
+      :variant="togetherRoom.inRoom ? 'tertiary' : 'ghost'"
+      circle
+      size="large"
+      :class="togetherRoom.inRoom ? undefined : mutedClass"
+      :title="t('listenTogether.title')"
+      @click="openTogetherPage"
+    >
+      <template #icon><IconLucideUsersRound /></template>
+    </SButton>
     <SDropdownMenu
       :items="moreMenuItems"
       side="top"

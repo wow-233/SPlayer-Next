@@ -33,6 +33,12 @@ import { handleError, isSkippableError } from "@/utils/errors";
 import { ErrorCode } from "@shared/types/errors";
 import { shouldSkipKeywordTrack } from "@/utils/preset/skipKeywords";
 import { toast } from "@/composables/useToast";
+import {
+  togetherRoom,
+  switchRoomTrack,
+  nextRoomTrack,
+  pushRoomTracks,
+} from "@/services/listenTogether";
 import i18n from "@/i18n";
 
 /** 加载运行时选项 */
@@ -550,6 +556,10 @@ export const isSeeking = (): boolean => seekTarget !== null;
  * @param posMs - 目标位置（毫秒）
  */
 export const seek = async (posMs: number): Promise<void> => {
+  if (togetherRoom.value.inRoom) {
+    toast.info("一起听进度由房间同步");
+    return;
+  }
   const status = useStatusStore();
   // 歌曲加载中 seek 无意义：引擎此刻没有可 seek 的解码线程，
   // 且 seekTarget 残留会让加载完成后的 position 推送被持续丢弃
@@ -699,6 +709,10 @@ export const playFrom = async (
   context?: PlaybackContext,
 ): Promise<void> => {
   if (items.length === 0) return;
+  if (togetherRoom.value.inRoom) {
+    await switchRoomTrack(items[Math.max(0, Math.min(startIndex, items.length - 1))]);
+    return;
+  }
   const status = useStatusStore();
   const media = useMediaStore();
   // 退出特殊模式
@@ -786,6 +800,10 @@ export const saveTrackTags = async (edits: TagEditRequest[]): Promise<TagWriteOu
  * @param tracks - 网易云智能推荐曲目
  */
 export const playHeartMode = async (tracks: readonly Track[]): Promise<void> => {
+  if (togetherRoom.value.inRoom) {
+    toast.info("请先退出一起听房间，再使用心动模式");
+    return;
+  }
   if (tracks.length === 0) return;
   const status = useStatusStore();
   queue.setQueue(tracks);
@@ -809,6 +827,10 @@ export const exitHeartMode = (): void => {
  * @returns 是否成功进入并开始播放
  */
 export const playPersonalFm = async (options?: PersonalFmOptions): Promise<boolean> => {
+  if (togetherRoom.value.inRoom) {
+    toast.info("请先退出一起听房间，再使用私人 FM");
+    return false;
+  }
   const status = useStatusStore();
   const track = await fm.start(options);
   if (!track) return false;
@@ -834,6 +856,7 @@ export const dislikeFmTrack = async (): Promise<void> => {
  * @param autoPlay - 是否自动播放
  */
 export const nextTrack = async (autoPlay = true): Promise<void> => {
+  if (await nextRoomTrack()) return;
   const status = useStatusStore();
   // 私人 FM
   if (status.fmMode) {
@@ -863,6 +886,11 @@ export const nextTrack = async (autoPlay = true): Promise<void> => {
  * @param index - 队列位置
  */
 export const playAtIndex = async (index: number): Promise<void> => {
+  if (togetherRoom.value.inRoom) {
+    const track = queue.queue.value[index];
+    if (track) await switchRoomTrack(track);
+    return;
+  }
   const status = useStatusStore();
   if (index < 0 || index >= queue.queueLength.value) return;
   if (index === status.playIndex) {
@@ -877,6 +905,12 @@ export const playAtIndex = async (index: number): Promise<void> => {
 
 /** 播放上一首，首位时回绕到末尾 */
 export const prevTrack = async (): Promise<void> => {
+  if (togetherRoom.value.inRoom) {
+    const previous = togetherRoom.value.played[0];
+    if (previous?.track) await switchRoomTrack(previous.track);
+    else await seek(0);
+    return;
+  }
   const status = useStatusStore();
   if (status.fmMode) return;
   if (queue.queueLength.value === 0) return;
@@ -908,6 +942,7 @@ const syncPlayMode = (): void => {
  * @param mode - list（列表循环）、one（单曲循环）
  */
 export const setRepeatMode = (mode: RepeatMode): void => {
+  if (togetherRoom.value.inRoom) return;
   const status = useStatusStore();
   if (status.repeatMode === mode) return;
   status.repeatMode = mode;
@@ -934,6 +969,7 @@ export const toggleShuffleMode = (): void => {
  * @param mode - off（顺序）、on（随机）
  */
 export const setShuffleMode = (mode: ShuffleMode): void => {
+  if (togetherRoom.value.inRoom) return;
   const status = useStatusStore();
   // 心动模式下忽略
   if (status.heartMode) return;
@@ -961,6 +997,7 @@ export const setShuffleMode = (mode: ShuffleMode): void => {
  * @param index - 要移除的队列位置
  */
 export const removeFromQueue = async (index: number): Promise<void> => {
+  if (togetherRoom.value.inRoom) return;
   const status = useStatusStore();
   if (index < 0 || index >= queue.queueLength.value) return;
   const isCurrentPlaying = index === status.playIndex;
@@ -1013,6 +1050,10 @@ export const insertToQueue = (
   context?: PlaybackContext,
 ): number => {
   const status = useStatusStore();
+  if (togetherRoom.value.inRoom) {
+    void pushRoomTracks([item]);
+    return status.playIndex;
+  }
   const len = queue.queue.value.length;
   const raw = afterIndex ?? status.playIndex + 1;
   const existingIdx = queue.findTrackIndex(item.id);
@@ -1044,6 +1085,10 @@ export const insertManyToQueue = (
   position: "next" | "end" = "next",
   context?: PlaybackContext,
 ): number => {
+  if (togetherRoom.value.inRoom) {
+    void pushRoomTracks(items);
+    return 0;
+  }
   if (items.length === 0) return 0;
   const status = useStatusStore();
   const seen = new Set(queue.queue.value.map((track) => track.id));
@@ -1063,9 +1108,23 @@ export const insertManyToQueue = (
  * 插入歌曲到当前位置之后并立即播放
  * 如果是当前正在播放的歌曲则继续播放，不重新加载
  */
-export const playNow = async (item: Track, context?: PlaybackContext): Promise<void> => {
+export const playNow = async (
+  item: Track,
+  context?: PlaybackContext,
+  fromRoom = false,
+): Promise<void> => {
+  if (togetherRoom.value.inRoom && !fromRoom && (await switchRoomTrack(item))) return;
   const status = useStatusStore();
   const media = useMediaStore();
+  if (fromRoom) {
+    status.fmMode = false;
+    status.heartMode = false;
+    queue.setQueue([item]);
+    status.playIndex = 0;
+    // 即使碰巧是同一首，也重新按房间进度加载，保证加入时触发同步事件。
+    await loadTrack(item);
+    return;
+  }
   // 同一首歌且已成功加载
   if (media.track?.id === item.id && status.currentSource) {
     if (!status.isPlaying) play();

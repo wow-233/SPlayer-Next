@@ -79,10 +79,19 @@ const NON_CACHEABLE: ReadonlySet<string> = new Set([
   "personal_fm",
   "fm_trash",
   "recommend_songs",
+  // 多人一起听：房间状态实时变化，且指令上报不可缓存
+  "listentogether_multi_room_create",
+  "listentogether_multi_match_ack",
+  "listentogether_multi_heartbeat",
+  "listentogether_multi_match_exit",
+  "listentogether_multi_song_operate",
+  "listentogether_multi_match_status_get",
+  "listentogether_multi_match_msg_history",
+  "listentogether_security_token",
 ]);
 
 /** 无需初始化网易云匿名登录态的公开接口 */
-const SESSIONLESS: ReadonlySet<string> = new Set(["audio_match"]);
+const SESSIONLESS: ReadonlySet<string> = new Set(["audio_match", "listentogether_security_token"]);
 
 /** 国内 IP 前缀池 */
 const CN_IP_PREFIXES = [
