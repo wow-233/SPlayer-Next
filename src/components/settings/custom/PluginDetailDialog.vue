@@ -7,6 +7,7 @@ import { isExternalUrl, openExternal } from "@/utils/url";
 import IconGlobe from "~icons/lucide/globe";
 import IconGamepad from "~icons/lucide/gamepad-2";
 import IconMenu from "~icons/lucide/menu";
+import IconCloud from "~icons/lucide/cloud";
 
 const props = defineProps<{
   open: boolean;
@@ -44,6 +45,7 @@ const GRANT_ICONS: Record<PluginGrant, Component> = {
   ui: IconMenu,
   library: IconMenu,
   api: IconGlobe,
+  netease: IconCloud,
 };
 
 /** ready 时的状态对象（含 sources/events/controls/settings/ui） */

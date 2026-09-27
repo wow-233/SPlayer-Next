@@ -12,6 +12,7 @@ import * as abLoop from "@/services/abLoop";
 import * as cacheScheduler from "@/services/cacheScheduler";
 import { setDeviceVolume } from "@/services/deviceVolume";
 import * as playStats from "./stats";
+import { roomTrackEnded, togetherRoom } from "@/services/listenTogether";
 import {
   applySavedVolumeForActiveDevice,
   getActiveDeviceId,
@@ -45,11 +46,15 @@ const finishCurrentTrack = async (): Promise<void> => {
   try {
     const stopByTimer = autoClose.onTrackEnded();
     // FM 模式跳过
-    const repeatOne = status.repeatMode === "one" && !status.fmMode;
+    const repeatOne = status.repeatMode === "one" && !status.fmMode && !togetherRoom.value.inRoom;
     // 结算播放统计
     playStats.onTrackEnded(repeatOne && !stopByTimer);
     // 定时关闭"等本曲结束"模式
     if (stopByTimer) return;
+    if (togetherRoom.value.inRoom) {
+      await roomTrackEnded();
+      return;
+    }
     if (repeatOne) {
       await restartCurrentTrack();
     } else {
@@ -164,6 +169,9 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
     }
     case "playTrack":
       await playNow(event.data.track);
+      break;
+    case "roomTrack":
+      await playNow(event.data.track, undefined, true);
       break;
     case "pause":
       await pause();

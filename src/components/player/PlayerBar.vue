@@ -9,6 +9,7 @@ import { useDownload } from "@/composables/useDownload";
 import { useProgressLyric } from "@/composables/useProgressLyric";
 import { useResponsiveLayout } from "@/composables/useResponsiveLayout";
 import * as player from "@/core/player";
+import { togetherRoom } from "@/services/listenTogether";
 
 const status = useStatusStore();
 const settings = useSettingsStore();
@@ -104,6 +105,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
       <SSlider
         :model-value="position"
         :glow="status.transitioning"
+        :disabled="togetherRoom.inRoom"
         :min="0"
         :max="duration"
         :step="100"
@@ -126,6 +128,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
       <SSlider
         :model-value="position"
         :glow="status.transitioning"
+        :disabled="togetherRoom.inRoom"
         :min="0"
         :max="duration"
         :step="100"

@@ -114,7 +114,7 @@ export const invokeMenu = async (args: PluginInvokeMenuArgs): Promise<MenuClickR
       code: PluginErrorCodes.NOT_READY,
     });
   }
-  const params: MenuClickReq = { menuId: args.menuId, track: args.track };
+  const params: MenuClickReq = { menuId: args.menuId, track: args.track, data: args.data };
   const result = await callOn<MenuClickRes>(rt, "menuClick", params, ACTION_TIMEOUTS.menuClick);
   if (!pluginRegistry.getGrantedPermissions(args.pluginId).includes("ui")) {
     throw Object.assign(new Error("Plugin UI permission denied"), {

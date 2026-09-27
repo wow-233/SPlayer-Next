@@ -11,6 +11,7 @@ import {
   playerTransitionActive,
   cancelPlayerTransition,
 } from "@/services/playerTransition";
+import { startTogetherRoom, stopTogetherRoom } from "@/services/listenTogether";
 
 const route = useRoute();
 const router = useRouter();
@@ -21,6 +22,8 @@ const { sidebarCollapsed } = useResponsiveLayout();
 // 接入 orpheus 协议唤起与外部音频文件播放
 useOrpheusProtocol();
 useExternalFileHandler();
+onMounted(startTogetherRoom);
+onBeforeUnmount(stopTogetherRoom);
 
 /** 有歌曲信息时显示播放栏 */
 const showPlayerBar = computed(() => !!useMediaStore().track);

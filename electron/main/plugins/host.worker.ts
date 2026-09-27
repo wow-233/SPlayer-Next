@@ -348,6 +348,14 @@ const buildSplayer = (record: PluginContextRecord, spec: LoadSpec): HostApi => (
       hostCall(record, "player.getNowPlaying", []) as ReturnType<PluginPlayerApi["getNowPlaying"]>,
   },
 
+  netease: {
+    call: <T = unknown>(name: string, params?: Record<string, unknown>) =>
+      hostCall(record, "netease.call", [name, params ?? {}]) as Promise<{
+        status: number;
+        body: T;
+      }>,
+  },
+
   music: {
     /**
      * 通过宿主搜索在线曲目
