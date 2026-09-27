@@ -6,6 +6,7 @@ import { useFavorite } from "@/composables/useFavorite";
 import { useTimeFormat } from "@/composables/useTimeFormat";
 import { useProgressLyric } from "@/composables/useProgressLyric";
 import * as player from "@/core/player";
+import { togetherRoom } from "@/services/listenTogether";
 import { volumeGainToPosition, volumePositionToGain } from "@/utils/volume";
 import { getValidArtists } from "@shared/utils/track";
 import { getQualityLabel, isLosslessQuality } from "@/utils/quality";
@@ -141,6 +142,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
       <SSlider
         :model-value="position"
         :glow="status.transitioning"
+        :disabled="togetherRoom.inRoom"
         :min="0"
         :max="duration"
         :step="100"
@@ -205,6 +207,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         circle
         size="auto"
         class="w-[18%] aspect-square"
+        :disabled="fmMode || togetherRoom.inRoom"
         @click="
           fmMode
             ? player.dislikeFmTrack()
@@ -264,7 +267,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         circle
         size="auto"
         class="w-[18%] aspect-square"
-        :disabled="fmMode"
+        :disabled="fmMode || togetherRoom.inRoom"
         @click="player.cycleRepeatMode()"
       >
         <IconLucideInfinity v-if="fmMode" class="size-[clamp(18px,2.4vh,30px)]" />

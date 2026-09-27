@@ -2,6 +2,7 @@
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import * as player from "@/core/player";
+import { togetherRoom } from "@/services/listenTogether";
 
 withDefaults(
   defineProps<{
@@ -22,6 +23,8 @@ const hasTrack = computed(() => !!media.track);
   <div class="flex items-center" :class="compact ? 'gap-0' : 'gap-2.5'">
     <SButton
       class="will-change-transform"
+      :disabled="togetherRoom.inRoom"
+      :title="togetherRoom.inRoom ? '房间使用共享播放顺序' : undefined"
       type="primary"
       variant="ghost"
       circle
@@ -91,7 +94,7 @@ const hasTrack = computed(() => !!media.track);
       circle
       ripple
       :size="compact ? 32 : 38"
-      :disabled="fmMode"
+      :disabled="fmMode || togetherRoom.inRoom"
       @click="player.cycleRepeatMode()"
     >
       <template #icon>

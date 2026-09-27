@@ -10,6 +10,7 @@ import { useTimeFormat } from "@/composables/useTimeFormat";
 import { useProgressLyric } from "@/composables/useProgressLyric";
 import * as player from "@/core/player";
 import { setPlayerExpanded } from "@/services/playerTransition";
+import { togetherRoom } from "@/services/listenTogether";
 import { useFullPlayer } from "../../context";
 
 const status = useStatusStore();
@@ -131,6 +132,7 @@ const showComments = (): void => {
           type="cover"
           variant="ghost"
           circle
+          :disabled="fmMode || togetherRoom.inRoom"
           @click="
             fmMode
               ? player.dislikeFmTrack()
@@ -184,7 +186,7 @@ const showComments = (): void => {
           type="cover"
           variant="ghost"
           circle
-          :disabled="fmMode"
+          :disabled="fmMode || togetherRoom.inRoom"
           :class="fmMode ? 'opacity-40' : 'opacity-100'"
           @click="player.cycleRepeatMode()"
         >
@@ -205,6 +207,7 @@ const showComments = (): void => {
         <SSlider
           :model-value="position"
           :glow="status.transitioning"
+          :disabled="togetherRoom.inRoom"
           :min="0"
           :max="duration"
           :step="100"

@@ -129,6 +129,123 @@ splayer.player.on("trackChange", ({ track }) => {
 | `ui`      | 歌曲菜单、`notify`                                 |
 | `library` | `music.searchLibrary`                              |
 | `api`     | `api.call`，使用应用当前的账号登录状态             |
+| `netease` | `netease.call`，调用宿主允许的网易云接口（复用当前登录态） |
+
+要调用宿主允许的网易云接口（如多人一起听与歌曲详情）必须声明 `@grant netease`，见 [控制插件 · 宿主网易云接口桥接](/plugins/control#netease)。
+
+## 沙箱环境
+
+插件脚本运行在受限沙箱中，与应用其余部分相互隔离：
+
+- **没有** Node 内置模块（`fs` / `net` / `path` 等）、**没有** `require` / `import`、**没有** DOM 与 Electron API；
+- **可用全局**：`splayer`、`Buffer`、`URL` / `URLSearchParams`、`TextEncoder` / `TextDecoder`、`btoa` / `atob`、`Promise`、`queueMicrotask`、定时器（`setTimeout` / `setInterval` / `setImmediate` 及其 clear 版本），以及 `console`（自动转发到 `splayer.log`）；
+- **网络**只能经 `splayer.request` 发起，且仅允许 `http://` / `https://`；
+- 脚本**顶层同步执行**有 5 秒时限，超时视为加载失败。请把耗时逻辑放进异步处理器，不要在顶层做同步重计算。
+
+## 通用 API
+
+宿主在沙箱全局注入 `splayer` 对象。下列接口对**音源**与**控制**两类插件通用；类型特定的接口（`splayer.register` 的入参、`splayer.on` / `splayer.player` 等）见各自的文档。
+
+### 属性
+
+| 属性                 | 类型     | 说明                       |
+| -------------------- | -------- | -------------------------- |
+| `splayer.pluginId`   | `string` | 宿主分配的插件 ID          |
+| `splayer.apiLevel`   | `number` | 宿主 Host API 级别         |
+| `splayer.locale`     | `string` | 当前界面语言（如 `zh-CN`） |
+| `splayer.appVersion` | `string` | 应用版本                   |
+
+### `splayer.request(url, options?)`
+
+发起 HTTP 请求。仅允许 `http://` / `https://`，并遵循系统代理。
+
+| 参数      | 类型     | 必填 | 说明           |
+| --------- | -------- | ---- | -------------- |
+| `url`     | `string` | ✅   | 请求地址       |
+| `options` | `object` |      | 请求选项，见下 |
+
+`options` 结构：
+
+| 字段           | 类型                                  | 默认     | 说明                       |
+| -------------- | ------------------------------------- | -------- | -------------------------- |
+| `method`       | `"GET" \| "POST"`                     | `"GET"`  | 请求方法                   |
+| `headers`      | `Record<string, string>`              | —        | 请求头                     |
+| `body`         | `string \| ArrayBuffer \| Uint8Array` | —        | 请求体                     |
+| `timeout`      | `number`                              | `15000`  | 超时（毫秒，最大 `60000`） |
+| `responseType` | `"text" \| "json" \| "arraybuffer"`   | `"text"` | 响应解析方式               |
+
+返回 `Promise<Result>`：
+
+| 字段      | 类型                     | 说明                                                         |
+| --------- | ------------------------ | ------------------------------------------------------------ |
+| `status`  | `number`                 | HTTP 状态码                                                  |
+| `headers` | `Record<string, string>` | 响应头                                                       |
+| `body`    | `unknown`                | `text` → 字符串；`json` → 对象；`arraybuffer` → `Uint8Array` |
+
+```js
+const resp = await splayer.request("https://api.example.com/song?id=1", {
+  method: "GET",
+  headers: { "User-Agent": "..." },
+  responseType: "json",
+});
+console.log(resp.status, resp.body);
+```
+
+### `splayer.storage`
+
+插件私有的键值存储，每个插件独立命名空间，卸载插件时一并清除。
+
+| 方法                      | 返回                 | 说明       |
+| ------------------------- | -------------------- | ---------- |
+| `storage.get(key)`        | `Promise<T \| null>` | 读取一个键 |
+| `storage.set(key, value)` | `Promise<void>`      | 写入一个键 |
+| `storage.remove(key)`     | `Promise<void>`      | 删除一个键 |
+| `storage.keys()`          | `Promise<string[]>`  | 列出所有键 |
+
+### `splayer.getSetting(key)`
+
+同步读取用户为该插件配置的值，未配置时返回 `undefined`。控制类插件通过 `splayer.register` 声明设置项，详见 [控制插件 · 设置项](/plugins/control#设置项)。
+
+### `splayer.log`
+
+输出日志，转发到宿主日志系统；脚本中的 `console.*` 也会转发到同一通道。
+
+| 方法                 | 说明 |
+| -------------------- | ---- |
+| `log.debug(...args)` | 调试 |
+| `log.info(...args)`  | 信息 |
+| `log.warn(...args)`  | 警告 |
+| `log.error(...args)` | 错误 |
+
+### `splayer.utils`
+
+常用工具的安全封装，无需自行引入 Node 模块。
+
+| 命名空间       | 方法                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| `utils.crypto` | `md5` / `sha1` / `sha256` / `hmac` / `randomBytes` / `aesEncrypt` / `aesDecrypt` / `rsaEncrypt` |
+| `utils.buffer` | `from` / `bufToString` / `concat`                                                               |
+| `utils.base64` | `encode` / `decode`                                                                             |
+| `utils.zlib`   | `inflate` / `deflate` / `gunzip` / `gzip`                                                       |
+
+## 资源约束与安全
+
+| 约束         | 值    | 说明                                     |
+| ------------ | ----- | ---------------------------------------- |
+| 加载超时     | 10 秒 | 从 fork 到收到就绪信号，超时判为加载失败 |
+| 顶层执行超时 | 5 秒  | 脚本同步部分的执行时限                   |
+| 网络默认超时 | 15 秒 | `splayer.request` 默认值                 |
+| 网络最大超时 | 60 秒 | `request` 的 `timeout` 上限              |
+| 在线导入大小 | ~9 MB | 在线安装脚本的体积上限                   |
+
+- 网络仅允许 `http(s)`，其余协议（`file://` 等）一律拒绝；
+- 插件通过 `splayer.*` 与宿主交互，持久化只走 `splayer.storage`；
+- 反向播放控制由宿主统一校验（如音量限定 `0~1`、`seek` 不得为负），非法入参会被忽略。
+
+::: warning 沙箱是稳定性边界，不是安全边界
+插件运行在独立子进程里，崩溃或卡死不会拖垮主程序——但这套隔离防的是**故障**，不是**恶意**。脚本本质上是在你机器上以你的权限执行的代码，能联网、能持久化数据。**安装一个插件等同于信任它，如同运行一个程序**，请只安装来源可信的脚本。
+:::
+>>>>>>> 31faf5d5 (feat: 集成网易云官方多人一起听房间与播放器同步)
 
 ## 数据存储
 

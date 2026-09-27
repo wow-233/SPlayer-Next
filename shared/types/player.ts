@@ -247,6 +247,7 @@ export type PlayerEvent =
   | { type: "next" }
   | { type: "prev" }
   | { type: "playTrack"; data: { track: Track } }
+  | { type: "roomTrack"; data: { track: Track } }
   | { type: "setShuffle"; data: { mode: ShuffleMode } }
   | { type: "setRepeat"; data: { mode: RepeatMode } }
   | { type: "getQueue"; data: { requestId: string; offset: number; limit: number } }

@@ -291,6 +291,41 @@ if (tracks.length) await splayer.player.addToQueue(tracks, "end");
 await splayer.player.setPlayMode({ repeat: "list", shuffle: "on" });
 ```
 
+## 宿主网易云接口桥接 {#netease}
+
+声明 `@grant netease` 后，插件可通过 `splayer.netease.call(name, params)` 调用宿主主进程的网易云接口，**自动复用当前登录态（Cookie）、加密与系统代理**，无需插件自行处理登录。
+
+**调用：** `splayer.netease.call(name, params)`
+
+**API 版本：** 4
+
+**权限：** `netease`
+
+**参数：**
+
+- `name`（`string`）：网易云接口模块名，仅开放白名单内的模块
+- `params`（`Record<string, unknown>`）：接口参数；插件无法传入自己的 Cookie，调用始终使用宿主登录态
+
+**返回：** `Promise<{ status: number; body: unknown }>`，与主进程 `callNetease` 一致。
+
+```js
+/**
+ * @name     示例
+ * @id       you.netease-example
+ * @version  1.0.0
+ * @apiLevel 4
+ * @grant    netease
+ */
+splayer.register({});
+
+const res = await splayer.netease.call("song_detail", { ids: "123,456" });
+splayer.log.info(res.status, res.body);
+```
+
+- 当前只开放多人一起听接口，以及 `song_detail`、`user_account`；其余模块以 `PLUGIN_PERMISSION_DENIED` 拒绝。
+- 未声明 `@grant netease` 时调用以 `PLUGIN_PERMISSION_DENIED` 失败。
+- 该能力属于 API level 4，脚本头部需声明 `@apiLevel 4`。
+
 ## 状态查询 {#queries}
 
 ### 播放状态 {#status}

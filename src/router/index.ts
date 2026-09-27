@@ -38,6 +38,11 @@ const router = createRouter({
           component: () => import("@/pages/History.vue"),
         },
         {
+          path: "listen-together",
+          name: "listen-together",
+          component: () => import("@/pages/ListenTogether.vue"),
+        },
+        {
           path: "download",
           name: "download",
           component: () => import("@/pages/Download.vue"),

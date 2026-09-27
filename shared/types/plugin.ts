@@ -34,9 +34,9 @@ export type PluginAction =
 export type PluginQuality = "hi-res" | "lossless" | "hq" | "sq" | "lq";
 
 /** 插件可声明的权限清单 */
-export const PLUGIN_GRANTS = ["network", "control", "ui", "library", "api"] as const;
+export const PLUGIN_GRANTS = ["network", "control", "ui", "library", "api", "netease"] as const;
 export type PluginPermissions = Partial<Record<PluginGrant, boolean>>;
-/** 插件权限：network 联网 / control 控制播放器 / ui 扩展界面 */
+/** 插件权限：network 联网 / control 控制播放器 / ui 扩展界面 / netease 调用宿主网易云接口（带登录态） */
 export type PluginGrant = (typeof PLUGIN_GRANTS)[number];
 
 /** 插件可订阅的高层播放事件 */
@@ -114,6 +114,7 @@ export interface PluginPlayerApi {
   setVolume(volume: number): void;
   getPosition(): Promise<number>;
   stop(): Promise<void>;
+  /** 加载并播放指定曲目（如一起听同步到房间当前歌曲） */
   playTrack(track: Track): Promise<{ id: string; source: Track["source"] }>;
   addToQueue(tracks: Track[], position?: "next" | "end"): Promise<{ count: number }>;
   setPlayMode(mode: { repeat?: RepeatMode; shuffle?: ShuffleMode }): Promise<void>;
@@ -243,15 +244,21 @@ export interface MenuClickReq {
   /** 被点击的菜单项 id */
   menuId: string;
   /** 当前歌曲上下文 */
-  track: Track;
+  track?: Track;
+  /** 宿主界面附带的动作参数 */
+  data?: unknown;
 }
 export interface MenuClickRes {
+  /** 动作失败原因；返回后宿主会把本次调用标记为失败 */
+  error?: string;
   /** 执行后给用户的提示文案 */
   toast?: string;
   /** 用系统浏览器打开此链接（仅 http/https） */
   openUrl?: string;
   /** 写入剪贴板的文本 */
   copyText?: string;
+  /** 返回给宿主界面的结构化数据 */
+  data?: unknown;
 }
 
 /** musicSearch：在某个源里按关键词搜索候选，供 host 做时长门槛匹配 */
@@ -358,6 +365,12 @@ export interface HostRequestResult {
   body: unknown;
 }
 
+/** 宿主网易云接口桥接的返回结构（与主进程 callNetease 对齐） */
+export interface HostNeteaseResult {
+  status: number;
+  body: unknown;
+}
+
 export interface HostLogger {
   debug: (...args: unknown[]) => void;
   info: (...args: unknown[]) => void;
@@ -414,6 +427,14 @@ export interface HostApi {
 
   /** 设置变更回调：用户改设置后触发 */
   onSettingChange: (key: string, handler: (value: unknown) => void) => void;
+
+  /**
+   * 网易云接口桥接：调用宿主主进程 callNetease(name, params)，自动注入登录态。
+   * 需插件声明 @grant netease；当前仅开放一起听接口和必要的歌曲、用户查询接口。
+   */
+  netease: {
+    call: (name: string, params?: Record<string, unknown>) => Promise<HostNeteaseResult>;
+  };
 }
 
 /* ========== 沙箱 ↔ 主进程消息协议 ========== */
@@ -513,6 +534,7 @@ export type HostCallMethod =
   | "music.searchOnline"
   | "music.searchLibrary"
   | "api.call"
+  | "netease.call"
   | "notify";
 
 /* ========== 渲染端 ↔ 主进程的 IPC 请求参数 ========== */
@@ -537,7 +559,8 @@ export interface PluginResolveUrlArgs {
 export interface PluginInvokeMenuArgs {
   pluginId: string;
   menuId: string;
-  track: Track;
+  track?: Track;
+  data?: unknown;
 }
 export interface PluginInvokeMenuResult {
   ok: boolean;
@@ -547,6 +570,8 @@ export interface PluginInvokeMenuResult {
   openUrl?: string;
   /** 插件请求复制的文本（成功时） */
   copyText?: string;
+  /** 插件返回给宿主界面的结构化数据 */
+  data?: unknown;
   error?: string;
 }
 

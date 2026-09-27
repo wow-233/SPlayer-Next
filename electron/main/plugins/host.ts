@@ -22,6 +22,20 @@ import { callPlatformApi } from "@main/services/platformApi";
 import { Notification } from "electron";
 import * as nowPlaying from "@main/services/nowPlaying";
 import type { OnlineSearchOptions, PlaybackQueueOptions } from "@shared/types/music";
+import { callNetease } from "@main/apis/netease";
+
+const PLUGIN_NETEASE_APIS = new Set([
+  "listentogether_multi_room_create",
+  "listentogether_multi_match_ack",
+  "listentogether_multi_heartbeat",
+  "listentogether_multi_match_exit",
+  "listentogether_multi_song_operate",
+  "listentogether_multi_match_status_get",
+  "listentogether_multi_match_msg_history",
+  "listentogether_security_token",
+  "song_detail",
+  "user_account",
+]);
 
 const AUTH_RESPONSE_FIELDS = new Set([
   "cookie",
@@ -73,9 +87,11 @@ export const dispatchHostCall = async (
             ? "api"
             : method === "notify"
               ? "ui"
-              : method.startsWith("player.")
-                ? "control"
-                : undefined;
+              : method === "netease.call"
+                ? "netease"
+                : method.startsWith("player.")
+                  ? "control"
+                  : undefined;
     /**
      * 按用户当前授权校验本次调用
      */
@@ -154,7 +170,9 @@ export const dispatchHostCall = async (
         break;
       case "player.playTrack": {
         const track = trackSchema.parse(args[0]);
-        playerControl.playTrack(track);
+        // 一起听插件的 playTrack 表示「同步房间当前歌曲」，走房间轨道通道
+        if (pluginId === "splayer.netease-together") playerControl.playRoomTrack(track);
+        else playerControl.playTrack(track);
         data = { id: track.id, source: track.source };
         break;
       }
@@ -212,6 +230,28 @@ export const dispatchHostCall = async (
         const message = z.string().trim().min(1).max(1000).parse(args[0]);
         if (!Notification.isSupported()) throw new Error("System notifications are unavailable");
         new Notification({ title: pluginName, body: message }).show();
+        break;
+      }
+      case "netease.call": {
+        const name = String(args[0] ?? "");
+        if (!PLUGIN_NETEASE_APIS.has(name)) {
+          throw Object.assign(new Error(`netease api not available to plugins: ${name}`), {
+            code: PluginErrorCodes.PERMISSION_DENIED,
+          });
+        }
+        const params = args[1];
+        if (
+          params !== undefined &&
+          (typeof params !== "object" || params === null || Array.isArray(params))
+        ) {
+          throw Object.assign(new Error("invalid netease params"), {
+            code: PluginErrorCodes.HANDLER_ERROR,
+          });
+        }
+        const safeParams = { ...((params ?? {}) as Record<string, unknown>) };
+        delete safeParams.cookie;
+        const res = await callNetease(name, safeParams);
+        data = { status: res.status, body: res.body };
         break;
       }
       default:
