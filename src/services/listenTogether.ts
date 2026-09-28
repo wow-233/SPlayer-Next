@@ -41,6 +41,7 @@ export const roomError = shallowRef("");
 let pollHandle: ReturnType<typeof setInterval> | undefined;
 let refreshing = false;
 let switching = false;
+let roomRevision = 0;
 
 const applyRoom = (value: unknown): void => {
   if (!value || typeof value !== "object" || !("inRoom" in value)) return;
@@ -61,11 +62,13 @@ const applyRoom = (value: unknown): void => {
 export const refreshTogetherRoom = async (): Promise<void> => {
   if (refreshing) return;
   refreshing = true;
+  const revision = roomRevision;
   try {
     const result = await window.api.plugins.invokeMenu({
       pluginId: TOGETHER_PLUGIN_ID,
       menuId: "together-status",
     });
+    if (revision !== roomRevision) return;
     if (result.ok) {
       roomError.value = "";
       applyRoom(result.data);
@@ -98,8 +101,8 @@ export const invokeTogether = async (menuId: string, track?: Track, data?: unkno
     data,
   });
   if (!result.ok) throw new Error(result.error || "房间操作失败");
+  roomRevision += 1;
   applyRoom(result.data);
-  void refreshTogetherRoom();
   return result;
 };
 

@@ -22,9 +22,9 @@ const roomLink = ref("");
 const keyword = ref("");
 const results = shallowRef<Track[]>([]);
 const searching = ref(false);
-const busy = ref("");
+const pending = reactive(new Set<string>());
 const activeTab = ref<"upcoming" | "played">("upcoming");
-const searchInput = ref<HTMLInputElement | null>(null);
+const searchArea = ref<HTMLElement | null>(null);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 let searchSequence = 0;
 
@@ -78,17 +78,17 @@ const clock = (ms: number): string => {
 };
 
 const run = async (name: string, menuId: string, track?: Track, data?: unknown): Promise<void> => {
-  if (busy.value) return;
-  busy.value = name;
+  const key = track && name !== "create" ? String(track.id) : "room";
+  if (pending.has(key)) return;
+  pending.add(key);
   try {
     const result = await invokeTogether(menuId, track, data);
     if (result.copyText) await copy(result.copyText);
-    else if (result.toast) toast.success(result.toast);
-    await refreshTogetherRoom();
+    else if (result.toast && name !== "push" && name !== "pin") toast.success(result.toast);
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "房间操作失败");
   } finally {
-    busy.value = "";
+    pending.delete(key);
   }
 };
 
@@ -145,12 +145,12 @@ const scheduleSearch = (): void => {
   }
   searchTimer = setTimeout(() => void search(), 280);
 };
+watch(keyword, scheduleSearch);
 
 const focusPush = async (): Promise<void> => {
-  activeTab.value = "upcoming";
   await nextTick();
-  searchInput.value?.scrollIntoView({ behavior: "smooth", block: "center" });
-  searchInput.value?.focus({ preventScroll: true });
+  searchArea.value?.scrollIntoView({ behavior: "smooth", block: "center" });
+  searchArea.value?.querySelector("input")?.focus({ preventScroll: true });
 };
 
 const roomTrack = (song: RoomSong): Track =>
@@ -170,35 +170,44 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="room-shell mx-auto w-full max-w-7xl px-6 pb-12 pt-8 md:px-10">
+  <div class="room-shell mx-auto w-full max-w-7xl px-5 pb-10 pt-3">
     <div class="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <div class="mb-2 text-sm font-medium text-primary">网易云官方房间</div>
-        <h1 class="text-3xl font-bold">多人一起听</h1>
+        <div class="mb-1 text-xs text-on-surface-variant/60">网易云官方房间</div>
+        <h1 class="text-3xl font-bold text-on-surface">多人一起听</h1>
         <p class="mt-2 text-sm text-on-surface-variant">
           {{
             togetherRoom.inRoom
-              ? `${togetherRoom.memberCount} 人在线 · 房间 ${togetherRoom.roomId}`
+              ? `${togetherRoom.memberCount} 人在线 · 所有人听同一首歌`
               : "和好友一起听，推歌会进入同一个房间队列"
           }}
         </p>
       </div>
-      <div v-if="togetherRoom.inRoom" class="flex gap-2">
-        <button class="room-button room-button-primary" @click="focusPush">＋ 推歌</button>
-        <button class="room-button" @click="copy(inviteLink)">复制邀请链接</button>
-        <button class="room-button" :disabled="!!busy" @click="run('leave', 'together-leave')">
+      <div v-if="togetherRoom.inRoom" class="flex flex-wrap gap-2">
+        <SButton type="primary" variant="secondary" round @click="focusPush">
+          <template #icon><IconLucideListPlus /></template>
+          推歌
+        </SButton>
+        <SButton variant="tertiary" round @click="copy(inviteLink)">
+          <template #icon><IconLucideLink /></template>
+          邀请好友
+        </SButton>
+        <SButton
+          variant="ghost"
+          round
+          :loading="pending.has('room')"
+          @click="run('leave', 'together-leave')"
+        >
           退出房间
-        </button>
+        </SButton>
       </div>
     </div>
 
-    <div v-if="roomError" class="mb-5 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-400">
-      {{ roomError }}
-    </div>
+    <SAlert v-if="roomError" type="error" class="mb-5">{{ roomError }}</SAlert>
 
     <template v-if="!togetherRoom.inRoom">
       <div class="grid gap-5 md:grid-cols-2">
-        <section class="room-panel">
+        <section class="room-panel bg-surface-panel">
           <h2 class="text-lg font-semibold">创建房间</h2>
           <p class="mt-2 text-sm text-on-surface-variant">
             已有官方房间会先恢复；否则以当前网易云歌曲创建。
@@ -208,38 +217,41 @@ onBeforeUnmount(() => {
             <div class="mt-1 text-sm text-on-surface-variant">{{ artistNames(media.track) }}</div>
           </div>
           <div class="mt-5 flex flex-wrap gap-2">
-            <button class="room-button room-button-primary" :disabled="!!busy" @click="createRoom">
+            <SButton type="primary" round :loading="pending.has('room')" @click="createRoom">
               创建或恢复房间
-            </button>
-            <button
-              class="room-button"
-              :disabled="!!busy"
+            </SButton>
+            <SButton
+              variant="tertiary"
+              round
+              :disabled="pending.has('room')"
               @click="run('resume', 'together-resume')"
             >
               恢复已有房间
-            </button>
+            </SButton>
           </div>
         </section>
-        <section class="room-panel">
+        <section class="room-panel bg-surface-panel">
           <h2 class="text-lg font-semibold">加入好友房间</h2>
           <p class="mt-2 text-sm text-on-surface-variant">粘贴网易云手机端“多人一起听”邀请链接。</p>
-          <textarea
+          <SInput
             v-model="roomLink"
-            class="room-input mt-5 min-h-24 resize-none"
+            type="textarea"
+            :rows="3"
+            class="mt-5"
             placeholder="https://st.music.163.com/listen-together/multishare/…"
           />
           <div class="mt-3 flex gap-2">
-            <button class="room-button" @click="pasteLink">粘贴链接</button>
-            <button class="room-button room-button-primary" :disabled="!!busy" @click="joinRoom">
+            <SButton variant="tertiary" round @click="pasteLink">粘贴链接</SButton>
+            <SButton type="primary" round :loading="pending.has('room')" @click="joinRoom">
               加入房间
-            </button>
+            </SButton>
           </div>
         </section>
       </div>
     </template>
 
     <template v-else>
-      <section class="room-panel room-hero mb-5">
+      <section class="room-panel room-hero bg-surface-panel mb-5">
         <div class="room-record-column">
           <div class="room-record">
             <img
@@ -270,9 +282,9 @@ onBeforeUnmount(() => {
         <div class="room-lyrics">
           <div class="room-lyrics-header">
             <span>歌词</span>
-            <button class="room-text-button" @click="status.isPlayerExpanded = true">
+            <SButton variant="text" size="small" @click="status.isPlayerExpanded = true">
               查看完整歌词
-            </button>
+            </SButton>
           </div>
           <div v-if="lyricPreview.length" class="room-lyrics-lines">
             <div
@@ -312,23 +324,23 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <section class="room-panel min-w-0">
-          <div class="mb-5 flex items-center gap-4 border-b border-primary/10 pb-3">
+        <section class="room-panel bg-surface-panel min-w-0">
+          <div class="mb-5 flex items-center gap-1 border-b border-on-surface/10 pb-3">
             <button
-              :class="
-                activeTab === 'upcoming' ? 'text-primary font-semibold' : 'text-on-surface-variant'
-              "
+              class="room-tab"
+              :class="{ 'room-tab-active': activeTab === 'upcoming' }"
               @click="activeTab = 'upcoming'"
             >
-              待播 {{ upcoming.length }}
+              待播
+              <span class="room-tab-count">{{ upcoming.length }}</span>
             </button>
             <button
-              :class="
-                activeTab === 'played' ? 'text-primary font-semibold' : 'text-on-surface-variant'
-              "
+              class="room-tab"
+              :class="{ 'room-tab-active': activeTab === 'played' }"
               @click="activeTab = 'played'"
             >
-              听过 {{ togetherRoom.played.length }}
+              听过
+              <span class="room-tab-count">{{ togetherRoom.played.length }}</span>
             </button>
           </div>
           <div
@@ -336,7 +348,7 @@ onBeforeUnmount(() => {
             class="py-10 text-center text-sm text-on-surface-variant"
           >
             房间还没有待播歌曲
-            <button class="room-text-button" @click="focusPush">去推歌</button>
+            <SButton type="primary" variant="text" size="small" @click="focusPush">去推歌</SButton>
           </div>
           <div
             v-if="activeTab === 'played' && !togetherRoom.played.length"
@@ -368,70 +380,65 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <template v-if="activeTab === 'upcoming'">
-              <button
-                class="room-pin-button"
-                :disabled="!!busy"
-                :title="
-                  song.pinCount === undefined ? '置顶次数暂不可用' : `${song.pinCount} 人置顶`
-                "
+              <SButton
+                type="primary"
+                variant="tertiary"
+                size="small"
+                round
+                :loading="pending.has(song.songId)"
+                :title="song.pinCount === undefined ? '置顶次数读取中' : `${song.pinCount} 次置顶`"
                 @click="run('pin', 'together-pin', roomTrack(song))"
               >
-                ↑
-                <span>{{ song.pinCount ?? "—" }}</span>
-              </button>
-              <button
-                class="room-text-button"
-                :disabled="!!busy"
+                <template #icon><IconLucideArrowUpToLine /></template>
+                {{ song.pinCount ?? "—" }}
+              </SButton>
+              <SButton
+                variant="ghost"
+                size="small"
+                :disabled="pending.has(song.songId)"
                 @click="run('goto', 'together-goto', roomTrack(song))"
               >
                 播放
-              </button>
+              </SButton>
             </template>
             <template v-else>
-              <button
-                class="room-text-button"
-                :disabled="!!busy || queuedIds.has(song.songId)"
+              <SButton
+                type="primary"
+                variant="ghost"
+                size="small"
+                :loading="pending.has(song.songId)"
+                :disabled="queuedIds.has(song.songId)"
                 @click="run('push', 'together-push', roomTrack(song))"
               >
-                {{ queuedIds.has(song.songId) ? "已在房间" : "加入待播" }}
-              </button>
-              <button
-                class="room-text-button"
-                :disabled="!!busy"
+                {{ queuedIds.has(song.songId) ? "已在待播" : "加入待播" }}
+              </SButton>
+              <SButton
+                variant="ghost"
+                size="small"
+                :disabled="pending.has(song.songId)"
                 @click="run('goto', 'together-goto', roomTrack(song))"
               >
                 重播
-              </button>
+              </SButton>
             </template>
           </div>
         </section>
 
-        <section class="room-panel min-w-0">
+        <section ref="searchArea" class="room-panel bg-surface-panel min-w-0">
           <h2 class="text-lg font-semibold">推歌到房间</h2>
           <p class="mt-1 text-sm text-on-surface-variant">
             推荐的歌曲会出现在所有人的待播列表。播放由房间统一控制。
           </p>
-          <div class="mt-4 flex gap-2">
-            <input
-              ref="searchInput"
+          <div class="mt-4">
+            <SInput
               v-model="keyword"
-              class="room-input min-w-0 flex-1"
-              placeholder="输入歌名或歌手，自动搜索"
-              @input="scheduleSearch"
+              round
+              clearable
+              placeholder="搜索网易云歌曲或歌手"
               @keyup.enter="search"
-            />
-            <button
-              v-if="keyword"
-              class="room-button"
-              title="清空搜索"
-              @click="
-                keyword = '';
-                scheduleSearch();
-                searchInput?.focus();
-              "
             >
-              清空
-            </button>
+              <template #prefix><IconLucideSearch class="size-4 opacity-50" /></template>
+            </SInput>
           </div>
           <div class="room-search-hint">
             {{
@@ -458,21 +465,30 @@ onBeforeUnmount(() => {
                 <div class="truncate font-medium">{{ track.title }}</div>
                 <div class="truncate text-xs text-on-surface-variant">{{ artistNames(track) }}</div>
               </div>
-              <button
-                class="room-text-button"
-                :disabled="!!busy || queuedIds.has(String(track.id))"
+              <SButton
+                :type="queuedIds.has(String(track.id)) ? 'default' : 'primary'"
+                :variant="queuedIds.has(String(track.id)) ? 'ghost' : 'secondary'"
+                size="small"
+                round
+                :loading="pending.has(String(track.id))"
+                :disabled="queuedIds.has(String(track.id))"
                 @click="run('push', 'together-push', track)"
               >
-                {{ queuedIds.has(String(track.id)) ? "已在房间" : "＋ 推歌" }}
-              </button>
-              <button
-                class="room-text-button"
-                :disabled="!!busy"
+                <template #icon>
+                  <IconLucideCheck v-if="queuedIds.has(String(track.id))" />
+                  <IconLucidePlus v-else />
+                </template>
+                {{ queuedIds.has(String(track.id)) ? "已在待播" : "推歌" }}
+              </SButton>
+              <SButton
+                variant="ghost"
+                size="small"
+                :disabled="pending.has(String(track.id))"
                 title="立即切换整个房间正在播放的歌曲"
                 @click="run('goto', 'together-goto', track)"
               >
                 立即播放
-              </button>
+              </SButton>
             </div>
           </div>
         </section>
@@ -483,121 +499,20 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .room-shell {
-  color: #eef7f2;
   min-height: 100%;
-  background: linear-gradient(
-    145deg,
-    rgba(8, 32, 33, 0.91),
-    rgba(14, 35, 39, 0.87) 52%,
-    rgba(9, 24, 28, 0.93)
-  );
-  border-radius: 24px;
-  box-shadow: 0 22px 80px rgba(0, 0, 0, 0.23);
-}
-.room-shell .text-on-surface-variant {
-  color: #aebfc0;
-}
-.room-shell .text-primary {
-  color: #9fe9cb;
+  color: rgb(var(--s-on-surface));
 }
 .room-panel {
-  border-radius: 20px;
-  border: 1px solid rgba(190, 235, 219, 0.16);
-  background: rgba(8, 28, 31, 0.66);
-  padding: 24px;
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.12);
-}
-.room-button,
-.room-text-button {
-  font: inherit;
-  cursor: pointer;
-  transition:
-    background 0.18s,
-    transform 0.18s,
-    opacity 0.18s;
-}
-.room-button {
-  border: 1px solid rgba(184, 238, 218, 0.25);
-  border-radius: 12px;
-  background: rgba(214, 251, 237, 0.12);
-  color: #f2fff8;
-  padding: 9px 15px;
-  font-size: 14px;
-  font-weight: 600;
-}
-.room-button:hover {
-  background: rgba(214, 251, 237, 0.22);
-}
-.room-button-primary {
-  border-color: #9deac7;
-  background: #a6edca;
-  color: #0c302b;
-}
-.room-button-primary:hover {
-  background: #c3f9dd;
-}
-.room-button:disabled,
-.room-text-button:disabled {
-  opacity: 0.48;
-  cursor: not-allowed;
-}
-.room-text-button {
-  flex-shrink: 0;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  padding: 6px 10px;
-  color: #a9eccd;
-  font-size: 14px;
-  font-weight: 600;
-}
-.room-text-button:hover {
-  background: rgba(169, 236, 205, 0.14);
-}
-.room-pin-button {
-  flex-shrink: 0;
-  min-width: 58px;
-  border: 1px solid rgba(169, 236, 205, 0.25);
-  border-radius: 10px;
-  background: rgba(169, 236, 205, 0.08);
-  color: #b6f5d6;
-  padding: 6px 10px;
-  font: inherit;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-.room-pin-button:hover {
-  background: rgba(169, 236, 205, 0.18);
-}
-.room-pin-button:disabled {
-  opacity: 0.48;
-  cursor: not-allowed;
-}
-.room-input {
-  display: block;
-  width: 100%;
-  border: 1px solid rgba(185, 231, 218, 0.3);
-  border-radius: 12px;
-  background: rgba(3, 19, 22, 0.72);
-  padding: 11px 13px;
-  color: #f2fff8;
-  font-size: 14px;
-  outline: none;
-}
-.room-input::placeholder {
-  color: #9baeb1;
-}
-.room-input:focus {
-  border-color: #a6edca;
-  box-shadow: 0 0 0 3px rgba(166, 237, 202, 0.15);
+  min-width: 0;
+  border: 1px solid rgb(var(--s-primary) / 0.15);
+  border-radius: 18px;
+  padding: 22px;
 }
 .room-hero {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 38px;
-  min-height: 430px;
-  background: linear-gradient(125deg, rgba(24, 67, 62, 0.85), rgba(9, 34, 37, 0.8));
+  gap: 26px;
+  min-height: 340px;
 }
 .room-record-column {
   min-width: 0;
@@ -607,133 +522,149 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 .room-record {
-  width: min(250px, 66vw);
+  width: min(178px, 48vw);
   aspect-ratio: 1;
   display: grid;
   place-items: center;
+  border: 7px solid #232726;
   border-radius: 50%;
   background: repeating-radial-gradient(circle at center, #181c1b 0 4px, #222927 5px 8px);
-  border: 9px solid #222a28;
-  box-shadow:
-    0 0 0 8px rgba(222, 255, 238, 0.06),
-    0 18px 35px rgba(0, 0, 0, 0.38);
+  box-shadow: 0 12px 26px rgb(0 0 0 / 20%);
 }
 .room-record-cover {
-  width: 58%;
+  width: 62%;
   aspect-ratio: 1;
   border-radius: 50%;
   object-fit: cover;
 }
 .room-record-placeholder {
-  color: #a6edca;
-  font-size: 72px;
+  color: rgb(var(--s-primary));
+  font-size: 60px;
 }
 .room-track-info {
   width: 100%;
+  margin-top: 20px;
   text-align: center;
-  margin-top: 28px;
 }
 .room-eyebrow {
-  color: #a8e9c9;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  color: rgb(var(--s-primary));
+  font-size: 12px;
+  font-weight: 600;
 }
 .room-track-info h2 {
-  margin: 8px 0 2px;
+  margin: 7px 0 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 25px;
+  font-size: 22px;
   font-weight: 700;
 }
 .room-track-info p {
   margin: 0;
-  color: #b8ccc8;
+  color: rgb(var(--s-on-surface) / 0.6);
 }
 .room-track-info .room-recommender {
-  margin-top: 6px;
+  margin-top: 5px;
   font-size: 12px;
 }
 .room-progress {
   width: 100%;
   max-width: 440px;
-  margin-top: 26px;
+  margin-top: 20px;
 }
 .room-progress-track {
   height: 4px;
-  border-radius: 5px;
   overflow: hidden;
-  background: rgba(210, 238, 223, 0.18);
+  border-radius: 5px;
+  background: rgb(var(--s-on-surface) / 0.1);
 }
 .room-progress-track > div {
   height: 100%;
-  background: #c6f4d7;
+  background: rgb(var(--s-primary));
 }
 .room-progress-time {
   display: flex;
   justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
-  color: #aebfc0;
+  color: rgb(var(--s-on-surface) / 0.48);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .room-lyrics {
   min-width: 0;
-  padding: 12px 0 12px 26px;
-  border-left: 1px solid rgba(200, 240, 221, 0.16);
+  padding: 8px 0 8px 24px;
+  border-left: 1px solid rgb(var(--s-on-surface) / 0.08);
 }
 .room-lyrics-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
-  font-weight: 700;
+  margin-bottom: 20px;
+  font-weight: 600;
 }
 .room-lyrics-lines {
-  max-height: 395px;
+  max-height: 300px;
   overflow: hidden;
   mask-image: linear-gradient(to bottom, transparent, black 14%, black 84%, transparent);
 }
 .room-lyric-line {
-  margin: 0 0 20px;
-  color: #adc3be;
-  font-size: 18px;
+  margin: 0 0 13px;
+  color: rgb(var(--s-on-surface) / 0.5);
+  font-size: 15px;
   line-height: 1.45;
 }
 .room-lyric-line.active {
-  color: #f0fff3;
-  font-size: 22px;
-  font-weight: 700;
+  color: rgb(var(--s-on-surface));
+  font-size: 18px;
+  font-weight: 650;
 }
 .room-lyric-translation {
   margin-top: 3px;
   font-size: 0.82em;
 }
-.room-lyrics-empty {
-  color: #aebfc0;
+.room-lyrics-empty,
+.room-search-hint {
+  color: rgb(var(--s-on-surface) / 0.5);
+  font-size: 12px;
 }
 .room-member {
-  border: 1px solid rgba(184, 238, 218, 0.2);
+  border: 1px solid rgb(var(--s-primary) / 0.12);
   border-radius: 999px;
-  background: rgba(211, 250, 233, 0.1);
+  background: rgb(var(--s-on-surface) / 0.05);
 }
-.room-search-hint {
-  margin-top: 9px;
-  color: #aebfc0;
-  font-size: 12px;
-  min-height: 18px;
+.room-tab {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgb(var(--s-on-surface) / 0.6);
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.room-tab:hover {
+  background: rgb(var(--s-on-surface) / 0.06);
+}
+.room-tab-active {
+  background: rgb(var(--s-on-surface) / 0.1);
+  color: rgb(var(--s-on-surface));
+  font-weight: 600;
+}
+.room-tab-count {
+  margin-left: 3px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
 }
 @media (max-width: 780px) {
   .room-hero {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 18px;
   }
   .room-lyrics {
     border-left: 0;
-    border-top: 1px solid rgba(200, 240, 221, 0.16);
-    padding: 20px 0 0;
+    border-top: 1px solid rgb(var(--s-on-surface) / 0.08);
+    padding: 18px 0 0;
   }
 }
 </style>

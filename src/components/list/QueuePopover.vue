@@ -136,9 +136,10 @@ const onClear = (): void => {
                 circle
                 size="tiny"
                 class="opacity-0 group-hover:opacity-100"
+                title="从播放列表移除"
                 @click.stop="removeAt(index)"
               >
-                <template #icon><IconLucideX /></template>
+                <template #icon><IconLucideTrash2 /></template>
               </SButton>
             </div>
           </div>
