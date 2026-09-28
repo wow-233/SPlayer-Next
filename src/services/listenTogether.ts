@@ -102,6 +102,7 @@ export const invokeTogether = async (menuId: string, track?: Track, data?: unkno
   });
   if (!result.ok) throw new Error(result.error || "房间操作失败");
   roomRevision += 1;
+  roomError.value = "";
   applyRoom(result.data);
   return result;
 };
