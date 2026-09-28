@@ -98,8 +98,7 @@ const pushToRoom = async (item: Track): Promise<void> => {
   if (pushingSongId.value || roomSongIds.value.has(String(item.id))) return;
   pushingSongId.value = String(item.id);
   try {
-    const result = await invokeTogether("together-push", item);
-    toast.success(result.toast || `已推歌：${item.title}`);
+    await invokeTogether("together-push", item);
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "推歌失败");
   } finally {
@@ -668,7 +667,10 @@ defineExpose({
                 </div>
               </div>
               <div v-if="showAlbum" class="flex-1 min-w-0">{{ t("songList.album") }}</div>
-              <div class="shrink-0 text-center whitespace-nowrap" :class="togetherRoom.inRoom ? 'w-28' : 'w-12'">
+              <div
+                class="shrink-0 text-center whitespace-nowrap"
+                :class="togetherRoom.inRoom ? 'w-28' : 'w-12'"
+              >
                 {{ t("songList.actions") }}
               </div>
               <div v-if="showDuration" class="w-16 shrink-0 text-center">
@@ -872,9 +874,14 @@ defineExpose({
                   {{ item.album?.name || t("collection.unknownAlbum") }}
                 </span>
               </div>
-              <button
+              <SButton
                 v-if="togetherRoom.inRoom && item.source === 'netease' && !batch.active.value"
-                class="shrink-0 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-45"
+                type="primary"
+                variant="tertiary"
+                size="small"
+                round
+                class="shrink-0"
+                :loading="pushingSongId === String(item.id)"
                 :disabled="!!pushingSongId || roomSongIds.has(String(item.id))"
                 :title="
                   roomSongIds.has(String(item.id)) ? '歌曲已在房间中' : '加入房间待播，不会立即切歌'
@@ -882,9 +889,13 @@ defineExpose({
                 @click.stop="pushToRoom(item)"
                 @dblclick.stop
               >
-                {{ roomSongIds.has(String(item.id)) ? "已在房间" : "＋ 推歌" }}
-              </button>
-              <!-- 收藏 -->
+                <template #icon>
+                  <IconLucideCheck v-if="roomSongIds.has(String(item.id))" />
+                  <IconLucidePlus v-else />
+                </template>
+                {{ roomSongIds.has(String(item.id)) ? "已在待播" : "推歌" }}
+              </SButton>
+              <!-- 红心：批量模式下隐藏，其余始终显示 -->
               <div
                 v-if="!batch.active.value && item.source !== 'plugin'"
                 class="w-12 shrink-0 flex items-center justify-center"
