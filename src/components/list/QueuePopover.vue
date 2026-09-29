@@ -11,6 +11,7 @@ const { t } = useI18n();
 const listRef = shallowRef<SVirtualListExposed | null>(null);
 const {
   statusStore,
+  inRoom,
   queue,
   queueLength,
   formatArtists,
@@ -54,7 +55,9 @@ const onClear = (): void => {
       class="shrink-0 flex items-start justify-between gap-2 px-3 pt-3.5 pb-2.5 border-b border-b-solid border-b-on-surface/8"
     >
       <div class="flex flex-col min-w-0">
-        <span class="text-sm font-semibold leading-tight truncate">{{ t("playlist.title") }}</span>
+        <span class="text-sm font-semibold leading-tight truncate">
+          {{ inRoom ? "房间播放列表" : t("playlist.title") }}
+        </span>
         <span class="text-xs text-on-surface-variant leading-tight mt-0.5">
           {{ t("common.totalSongs", { count: queueLength }) }}
         </span>
@@ -70,6 +73,7 @@ const onClear = (): void => {
           <template #icon><IconLucideLocate /></template>
         </SButton>
         <SButton
+          v-if="!inRoom"
           variant="ghost"
           circle
           size="small"
@@ -116,8 +120,8 @@ const onClear = (): void => {
                 isDragging && draggedIndex === index ? 'opacity-30' : 'opacity-100',
               ]"
               @click="onPlay(index)"
-              @mousedown="handlePointerDown($event, index, item.title)"
-              @touchstart.passive="handlePointerDown($event, index, item.title)"
+              @mousedown="!inRoom && handlePointerDown($event, index, item.title)"
+              @touchstart.passive="!inRoom && handlePointerDown($event, index, item.title)"
             >
               <SImg :src="item.cover" class="size-9 rounded shrink-0" />
               <div class="flex-1 min-w-0">
@@ -132,6 +136,7 @@ const onClear = (): void => {
                 </div>
               </div>
               <SButton
+                v-if="!inRoom"
                 variant="ghost"
                 circle
                 size="tiny"

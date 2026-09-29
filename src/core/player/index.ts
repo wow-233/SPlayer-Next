@@ -377,6 +377,7 @@ const loadTrack = async (
   // 跳过指定关键词歌曲
   const settings = useSettingsStore();
   if (
+    !togetherRoom.value.inRoom &&
     settings.preset.skipKeywordsSongs &&
     shouldSkipKeywordTrack(track, settings.preset.skipTrackKeywords)
   ) {
