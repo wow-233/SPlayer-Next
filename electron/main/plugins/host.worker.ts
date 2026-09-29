@@ -30,6 +30,7 @@ import type {
   PluginRegistration,
 } from "@shared/types/plugin";
 import { installLxShim } from "./lx-shim";
+import { sanitizeForIpc } from "./ipcValue";
 
 const parentPort: {
   on: (evt: "message", cb: (event: { data: SandboxIn }) => void) => void;
@@ -41,43 +42,9 @@ if (!parentPort) {
 }
 
 /**
- * 剥离日志等辅助消息中不可克隆的字段
- * 保留 string/number/bool/null/Uint8Array/纯字典/数组；丢函数/symbol；
- * Buffer 转 Uint8Array、普通对象用 Object.create(null) 重建以脱掉 vm.Context 原型链
- * @param value - 任意值
- * @param depth - 递归深度上限
- */
-const sanitizeForIpc = (value: unknown, depth = 0): unknown => {
-  if (depth > 6) return null;
-  if (value == null) return value;
-  const t = typeof value;
-  if (t === "string" || t === "number" || t === "boolean" || t === "bigint") return value;
-  if (t === "function" || t === "symbol") return undefined;
-  if (Buffer.isBuffer(value)) return new Uint8Array(value);
-  if (value instanceof Uint8Array || value instanceof ArrayBuffer) return value;
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => sanitizeForIpc(item, depth + 1))
-      .filter((item) => item !== undefined);
-  }
-  if (t === "object") {
-    const out: Record<string, unknown> = Object.create(null);
-    try {
-      for (const key of Object.keys(value as object)) {
-        const cleaned = sanitizeForIpc((value as Record<string, unknown>)[key], depth + 1);
-        if (cleaned !== undefined) out[key] = cleaned;
-      }
-    } catch {
-      // Proxy 的 ownKeys 可能抛，直接返回空字典
-    }
-    return out;
-  }
-  return undefined;
-};
-
-/**
- * 发送宿主消息，业务数据无法克隆时向调用方报错
- * @param msg - 待发送的沙箱消息
+ * 跨 host→main 边界发消息
+ * 直发；失败 → sanitize 后重发；仍失败 → 抛带 kind 上下文的错误
+ * @param msg - 待发消息
  */
 const send = (msg: SandboxOut): void => {
   try {
