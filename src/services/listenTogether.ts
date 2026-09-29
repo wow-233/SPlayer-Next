@@ -95,7 +95,7 @@ export const refreshTogetherRoom = async (): Promise<void> => {
 export const startTogetherRoom = (): void => {
   if (pollHandle) return;
   void refreshTogetherRoom();
-  pollHandle = setInterval(() => void refreshTogetherRoom(), 3000);
+  pollHandle = setInterval(() => void refreshTogetherRoom(), 2000);
 };
 
 export const stopTogetherRoom = (): void => {

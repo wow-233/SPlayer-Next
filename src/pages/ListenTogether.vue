@@ -79,7 +79,10 @@ const inviteLink = computed(() => {
   return `https://st.music.163.com/listen-together/multishare/index.html?${params}`;
 });
 const artistNames = (track?: Track | null): string =>
-  track?.artists.map((artist) => artist.name).join(" / ") || "未知歌手";
+  track?.artists
+    .map((artist) => artist.name?.trim())
+    .filter(Boolean)
+    .join(" / ") || "未知歌手";
 const songTitle = (song: RoomSong): string => song.track?.title || `歌曲 ${song.songId}`;
 const recommender = (song: RoomSong): string =>
   togetherRoom.value.members.find((user) => user.userId === song.recommendedBy)?.nickname ||
@@ -113,7 +116,7 @@ const run = async (name: string, menuId: string, track?: Track, data?: unknown):
   try {
     const result = await invokeTogether(menuId, track, data);
     if (result.copyText) await copy(result.copyText);
-    else if (result.toast && name !== "push" && name !== "pin") toast.success(result.toast);
+    else if (result.toast) toast.success(result.toast);
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "房间操作失败");
   } finally {
