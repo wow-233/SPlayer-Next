@@ -24,6 +24,7 @@ const results = shallowRef<Track[]>([]);
 const searching = ref(false);
 const pending = reactive(new Set<string>());
 const activeTab = ref<"upcoming" | "played">("upcoming");
+const pushOpen = ref(false);
 const searchArea = ref<HTMLElement | null>(null);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 let searchSequence = 0;
@@ -39,9 +40,7 @@ const currentTrack = computed(() => {
     ? local
     : null;
 });
-const upcoming = computed(() =>
-  togetherRoom.value.queue.filter((song) => song.songId !== togetherRoom.value.currentSongId),
-);
+const upcoming = computed(() => togetherRoom.value.queue.slice(1));
 const queuedIds = computed(() => new Set(togetherRoom.value.queue.map((song) => song.songId)));
 const inviteLink = computed(() => {
   const room = togetherRoom.value;
@@ -137,8 +136,9 @@ const search = async (): Promise<void> => {
 
 const scheduleSearch = (): void => {
   if (searchTimer) clearTimeout(searchTimer);
+  searchSequence += 1;
+  searching.value = !!keyword.value.trim();
   if (!keyword.value.trim()) {
-    searchSequence += 1;
     results.value = [];
     searching.value = false;
     return;
@@ -148,8 +148,8 @@ const scheduleSearch = (): void => {
 watch(keyword, scheduleSearch);
 
 const focusPush = async (): Promise<void> => {
+  pushOpen.value = true;
   await nextTick();
-  searchArea.value?.scrollIntoView({ behavior: "smooth", block: "center" });
   searchArea.value?.querySelector("input")?.focus({ preventScroll: true });
 };
 
@@ -204,6 +204,9 @@ onBeforeUnmount(() => {
     </div>
 
     <SAlert v-if="roomError" type="error" class="mb-5">{{ roomError }}</SAlert>
+    <SAlert v-else-if="togetherRoom.syncError" type="warning" class="mb-5">
+      {{ togetherRoom.syncError }}
+    </SAlert>
 
     <template v-if="!togetherRoom.inRoom">
       <div class="grid gap-5 md:grid-cols-2">
@@ -263,7 +266,9 @@ onBeforeUnmount(() => {
             <span v-else class="room-record-placeholder">♫</span>
           </div>
           <div class="room-track-info">
-            <div class="room-eyebrow">{{ togetherRoom.paused ? "房间已暂停" : "正在一起听" }}</div>
+            <div class="room-eyebrow">
+              {{ togetherRoom.paused ? "本机已暂停 · 房间继续播放" : "正在一起听" }}
+            </div>
             <h2>{{ currentTrack?.title || "等待房间播放歌曲" }}</h2>
             <p>{{ artistNames(currentTrack) }}</p>
             <p v-if="current?.recommendedBy" class="room-recommender">
@@ -323,7 +328,7 @@ onBeforeUnmount(() => {
         </span>
       </div>
 
-      <div class="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+      <div>
         <section class="room-panel bg-surface-panel min-w-0">
           <div class="mb-5 flex items-center gap-1 border-b border-on-surface/10 pb-3">
             <button
@@ -342,6 +347,9 @@ onBeforeUnmount(() => {
               听过
               <span class="room-tab-count">{{ togetherRoom.played.length }}</span>
             </button>
+            <SButton class="ml-auto" type="primary" variant="text" size="small" @click="focusPush">
+              推歌
+            </SButton>
           </div>
           <div
             v-if="activeTab === 'upcoming' && !upcoming.length"
@@ -358,7 +366,7 @@ onBeforeUnmount(() => {
           </div>
           <div
             v-for="(song, index) in activeTab === 'upcoming' ? upcoming : togetherRoom.played"
-            :key="`${activeTab}-${index}-${song.songId}`"
+            :key="song.songBizId || `${activeTab}-${index}-${song.songId}`"
             class="flex items-center gap-3 border-b border-primary/5 py-3 last:border-0"
           >
             <span class="w-6 shrink-0 text-center text-sm text-on-surface-variant">
@@ -386,17 +394,25 @@ onBeforeUnmount(() => {
                 size="small"
                 round
                 :loading="pending.has(song.songId)"
-                :title="song.pinCount === undefined ? '置顶次数读取中' : `${song.pinCount} 次置顶`"
-                @click="run('pin', 'together-pin', roomTrack(song))"
+                :disabled="song.pinned"
+                :title="song.pinned ? '你已置顶这首歌' : '置顶这首歌'"
+                @click="run('pin', 'together-pin', roomTrack(song), { songBizId: song.songBizId })"
               >
                 <template #icon><IconLucideArrowUpToLine /></template>
-                {{ song.pinCount ?? "—" }}
+                {{ song.pinned ? "已置顶" : "置顶" }} {{ song.pinCount ?? "—" }}
               </SButton>
               <SButton
                 variant="ghost"
                 size="small"
                 :disabled="pending.has(song.songId)"
-                @click="run('goto', 'together-goto', roomTrack(song))"
+                @click="
+                  run(
+                    'goto',
+                    'together-goto',
+                    roomTrack(song),
+                    song.songBizId ? { songBizId: song.songBizId } : undefined,
+                  )
+                "
               >
                 播放
               </SButton>
@@ -416,7 +432,14 @@ onBeforeUnmount(() => {
                 variant="ghost"
                 size="small"
                 :disabled="pending.has(song.songId)"
-                @click="run('goto', 'together-goto', roomTrack(song))"
+                @click="
+                  run(
+                    'goto',
+                    'together-goto',
+                    roomTrack(song),
+                    song.songBizId ? { songBizId: song.songBizId } : undefined,
+                  )
+                "
               >
                 重播
               </SButton>
@@ -424,74 +447,74 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section ref="searchArea" class="room-panel bg-surface-panel min-w-0">
-          <h2 class="text-lg font-semibold">推歌到房间</h2>
-          <p class="mt-1 text-sm text-on-surface-variant">
-            推荐的歌曲会出现在所有人的待播列表。播放由房间统一控制。
-          </p>
-          <div class="mt-4">
-            <SInput
-              v-model="keyword"
-              round
-              clearable
-              placeholder="搜索网易云歌曲或歌手"
-              @keyup.enter="search"
-            >
-              <template #prefix><IconLucideSearch class="size-4 opacity-50" /></template>
-            </SInput>
-          </div>
-          <div class="room-search-hint">
-            {{
-              searching
-                ? "正在搜索…"
-                : keyword.trim()
-                  ? `找到 ${results.length} 首 · 点击推歌加入待播`
-                  : "搜索后可连续推歌，无需重复打开页面"
-            }}
-          </div>
-          <div class="mt-4 max-h-[34rem] overflow-y-auto">
-            <div
-              v-for="track in results"
-              :key="track.id"
-              class="flex items-center gap-3 border-b border-primary/5 py-3 last:border-0"
-            >
-              <img
-                v-if="track.cover"
-                :src="track.cover"
-                class="size-10 rounded-lg object-cover"
-                alt=""
-              />
-              <div class="min-w-0 flex-1">
-                <div class="truncate font-medium">{{ track.title }}</div>
-                <div class="truncate text-xs text-on-surface-variant">{{ artistNames(track) }}</div>
-              </div>
-              <SButton
-                :type="queuedIds.has(String(track.id)) ? 'default' : 'primary'"
-                :variant="queuedIds.has(String(track.id)) ? 'ghost' : 'secondary'"
-                size="small"
+        <SDrawer v-model:open="pushOpen" title="推歌到房间" width="min(520px, 100vw)">
+          <section ref="searchArea" class="px-5 pb-5 min-w-0">
+            <p class="mt-1 text-sm text-on-surface-variant">
+              推荐的歌曲会出现在所有人的待播列表。播放由房间统一控制。
+            </p>
+            <div class="mt-4">
+              <SInput
+                v-model="keyword"
                 round
-                :loading="pending.has(String(track.id))"
-                :disabled="queuedIds.has(String(track.id))"
-                @click="run('push', 'together-push', track)"
+                clearable
+                placeholder="搜索网易云歌曲或歌手"
+                @keyup.enter="search"
               >
-                <template #icon>
-                  <IconLucideCheck v-if="queuedIds.has(String(track.id))" />
-                  <IconLucidePlus v-else />
-                </template>
-                {{ queuedIds.has(String(track.id)) ? "已在待播" : "推歌" }}
-              </SButton>
-              <SButton
-                variant="ghost"
-                size="small"
-                :disabled="pending.has(String(track.id))"
-                title="立即切换整个房间正在播放的歌曲"
-                @click="run('goto', 'together-goto', track)"
-              >
-                立即播放
-              </SButton>
+                <template #prefix><IconLucideSearch class="size-4 opacity-50" /></template>
+              </SInput>
             </div>
-          </div>
-        </section>
+            <div class="room-search-hint">
+              {{
+                searching
+                  ? "正在搜索…"
+                  : keyword.trim()
+                    ? `找到 ${results.length} 首 · 点击推歌加入待播`
+                    : "搜索后可连续推歌，无需重复打开页面"
+              }}
+            </div>
+            <div class="mt-4 max-h-[34rem] overflow-y-auto">
+              <div
+                v-for="track in results"
+                :key="track.id"
+                class="flex items-center gap-3 border-b border-primary/5 py-3 last:border-0"
+              >
+                <img
+                  v-if="track.cover"
+                  :src="track.cover"
+                  class="size-10 rounded-lg object-cover"
+                  alt=""
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="truncate font-medium">{{ track.title }}</div>
+                  <div class="truncate text-xs text-on-surface-variant">
+                    {{ artistNames(track) }}
+                  </div>
+                </div>
+                <SButton
+                  :type="queuedIds.has(String(track.id)) ? 'default' : 'primary'"
+                  :variant="queuedIds.has(String(track.id)) ? 'ghost' : 'secondary'"
+                  size="small"
+                  round
+                  :loading="pending.has(String(track.id))"
+                  :disabled="queuedIds.has(String(track.id))"
+                  @click="run('push', 'together-push', track)"
+                >
+                  <template #icon>
+                    <IconLucideCheck v-if="queuedIds.has(String(track.id))" />
+                    <IconLucidePlus v-else />
+                  </template>
+                  {{
+                    String(track.id) === togetherRoom.currentSongId
+                      ? "正在播放"
+                      : queuedIds.has(String(track.id))
+                        ? "已在待播"
+                        : "推歌"
+                  }}
+                </SButton>
+              </div>
+            </div>
+          </section>
+        </SDrawer>
       </div>
     </template>
   </div>
