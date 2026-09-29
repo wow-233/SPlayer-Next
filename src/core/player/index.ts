@@ -38,6 +38,8 @@ import {
   switchRoomTrack,
   nextRoomTrack,
   pushRoomTracks,
+  resumeRoomPlayback,
+  roomPlaybackFailed,
 } from "@/services/listenTogether";
 import i18n from "@/i18n";
 
@@ -93,6 +95,10 @@ const skipOnFailure = async (
   getCurrentToken: () => number,
   autoPlay = true,
 ): Promise<void> => {
+  if (togetherRoom.value.inRoom) {
+    await roomPlaybackFailed();
+    return;
+  }
   consecutiveFailures++;
   if (
     consecutiveFailures >= MAX_CONSECUTIVE_FAILURES ||
@@ -107,7 +113,7 @@ const skipOnFailure = async (
     return;
   }
   setTimeout(() => {
-    if (myToken === getCurrentToken()) nextTrack(autoPlay);
+    if (myToken === getCurrentToken() && !togetherRoom.value.inRoom) nextTrack(autoPlay);
   }, SKIP_ON_ERROR_DELAY_MS);
 };
 
@@ -314,6 +320,7 @@ const loadTrack = async (
   // 跳过指定关键词歌曲
   const settings = useSettingsStore();
   if (
+    !togetherRoom.value.inRoom &&
     settings.preset.skipKeywordsSongs &&
     shouldSkipKeywordTrack(track, settings.preset.skipTrackKeywords)
   ) {
@@ -427,6 +434,10 @@ let sourceRecoveryTrackId: string | null = null;
  * 重载一次后仍失败则放弃跳曲，保持恢复前的播放 / 暂停态
  */
 export const recoverFromSourceFailure = async (): Promise<void> => {
+  if (togetherRoom.value.inRoom) {
+    await roomPlaybackFailed();
+    return;
+  }
   const track = useMediaStore().track;
   if (!track) return;
   const wasPlaying = useStatusStore().isPlaying;
@@ -462,6 +473,10 @@ let pendingPlayAfterRestore = false;
 
 /** 恢复播放 */
 export const play = async (): Promise<void> => {
+  if (togetherRoom.value.inRoom) {
+    await resumeRoomPlayback();
+    return;
+  }
   const status = useStatusStore();
   if (isRestoringLastTrack) {
     pendingPlayAfterRestore = true;

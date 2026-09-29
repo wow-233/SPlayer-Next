@@ -7,6 +7,7 @@ import { useMediaStore } from "@/stores/media";
 import { useThemeStore } from "@/stores/theme";
 import { clearQueue, queue, queueLength } from "@/stores/queue";
 import * as player from "@/core/player";
+import { togetherRoom, switchRoomTrack } from "@/services/listenTogether";
 
 export interface UseQueuePanelOptions {
   listRef: Ref<SVirtualListExposed | null>;
@@ -21,6 +22,22 @@ export const useQueuePanel = (options: UseQueuePanelOptions) => {
   const { t } = useI18n();
   const statusStore = useStatusStore();
   const mediaStore = useMediaStore();
+  const inRoom = computed(() => togetherRoom.value.inRoom);
+  const displayQueue = computed<Track[]>(() =>
+    inRoom.value
+      ? togetherRoom.value.queue.map(
+          (song) =>
+            song.track ?? {
+              id: song.songId,
+              source: "netease",
+              title: `歌曲 ${song.songId}`,
+              artists: [],
+              duration: 0,
+            },
+        )
+      : [...queue.value],
+  );
+  const displayLength = computed(() => displayQueue.value.length);
 
   /** 拼接艺术家名称 */
   const formatArtists = (artists: Track["artists"]): string => {
@@ -30,6 +47,11 @@ export const useQueuePanel = (options: UseQueuePanelOptions) => {
 
   /** 播放指定索引；是否关闭面板交给调用方决定 */
   const playAt = async (index: number): Promise<void> => {
+    if (inRoom.value) {
+      const track = displayQueue.value[index];
+      if (track) await switchRoomTrack(track);
+      return;
+    }
     await player.playAtIndex(index);
   };
 
@@ -42,6 +64,10 @@ export const useQueuePanel = (options: UseQueuePanelOptions) => {
 
   /** 清空队列 + 重置播放索引 */
   const clearAll = (): void => {
+    if (inRoom.value) {
+      clearConfirmOpen.value = false;
+      return;
+    }
     if (queueLength.value === 0) return;
     player.stop();
     statusStore.playIndex = -1;
@@ -60,8 +86,9 @@ export const useQueuePanel = (options: UseQueuePanelOptions) => {
 
   return {
     statusStore,
-    queue,
-    queueLength,
+    inRoom,
+    queue: displayQueue,
+    queueLength: displayLength,
     formatArtists,
     playAt,
     removeAt,

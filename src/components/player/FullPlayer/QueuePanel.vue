@@ -9,6 +9,7 @@ const { t } = useI18n();
 const listRef = shallowRef<SVirtualListExposed | null>(null);
 const {
   statusStore,
+  inRoom,
   queue,
   queueLength,
   formatArtists,
@@ -25,7 +26,7 @@ const {
     <div class="shrink-0 flex items-start justify-between gap-4 pl-1 pr-20 pb-4">
       <div class="flex flex-col min-w-0 pl-2.5">
         <h2 class="m-0 text-2xl font-semibold leading-tight truncate">
-          {{ t("playlist.title") }}
+          {{ inRoom ? "房间播放列表" : t("playlist.title") }}
         </h2>
         <span class="text-sm text-cover/55 mt-1">
           {{ t("common.totalSongs", { count: queueLength }) }}
@@ -43,6 +44,7 @@ const {
           <template #icon><IconLucideLocate /></template>
         </SButton>
         <SButton
+          v-if="!inRoom"
           type="cover"
           variant="secondary"
           round
@@ -105,6 +107,7 @@ const {
                 </div>
               </div>
               <SButton
+                v-if="!inRoom"
                 type="cover"
                 variant="ghost"
                 circle

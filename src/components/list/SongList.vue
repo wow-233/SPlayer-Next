@@ -99,18 +99,18 @@ const textCollator = new Intl.Collator(undefined, {
 
 /** 当前播放歌曲 ID */
 const playingId = computed(() => media.track?.id);
-const pushingSongId = ref<string | null>(null);
+const pushingSongIds = reactive(new Set<string>());
 const roomSongIds = computed(() => new Set(togetherRoom.value.queue.map((song) => song.songId)));
 
 const pushToRoom = async (item: Track): Promise<void> => {
-  if (pushingSongId.value || roomSongIds.value.has(String(item.id))) return;
-  pushingSongId.value = String(item.id);
+  if (pushingSongIds.has(String(item.id)) || roomSongIds.value.has(String(item.id))) return;
+  pushingSongIds.add(String(item.id));
   try {
     await invokeTogether("together-push", item);
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "推歌失败");
   } finally {
-    pushingSongId.value = null;
+    pushingSongIds.delete(String(item.id));
   }
 };
 
@@ -695,8 +695,8 @@ defineExpose({
                 size="small"
                 round
                 class="shrink-0"
-                :loading="pushingSongId === String(item.id)"
-                :disabled="!!pushingSongId || roomSongIds.has(String(item.id))"
+                :loading="pushingSongIds.has(String(item.id))"
+                :disabled="pushingSongIds.has(String(item.id)) || roomSongIds.has(String(item.id))"
                 :title="
                   roomSongIds.has(String(item.id)) ? '歌曲已在房间中' : '加入房间待播，不会立即切歌'
                 "
