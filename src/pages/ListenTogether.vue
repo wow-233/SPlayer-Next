@@ -1,6 +1,9 @@
 <script setup lang="ts">
 defineOptions({ name: "ListenTogether" });
 
+import IconLucideLogOut from "~icons/lucide/log-out";
+import { useHistoryStore } from "@/stores/history";
+import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import type { Track } from "@shared/types/player";
 import { searchSongs } from "@/apis/search";
 import { useMediaStore } from "@/stores/media";
@@ -16,6 +19,8 @@ import {
 } from "@/services/listenTogether";
 
 const media = useMediaStore();
+const history = useHistoryStore();
+const lobbyTab = ref("create");
 const status = useStatusStore();
 const { copy } = useCopyText();
 const roomLink = ref("");
@@ -23,7 +28,7 @@ const keyword = ref("");
 const results = shallowRef<Track[]>([]);
 const searching = ref(false);
 const pending = reactive(new Set<string>());
-const activeTab = ref<"upcoming" | "played">("upcoming");
+const activeTab = ref("upcoming");
 const pushOpen = ref(false);
 const searchArea = ref<HTMLElement | null>(null);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -41,6 +46,30 @@ const currentTrack = computed(() => {
     : null;
 });
 const upcoming = computed(() => togetherRoom.value.queue.slice(1));
+const visibleSongs = computed(() =>
+  activeTab.value === "upcoming" ? upcoming.value : togetherRoom.value.played,
+);
+const queueTabs = computed(() => [
+  { key: "upcoming", label: `待播 ${upcoming.value.length}` },
+  { key: "played", label: `听过 ${togetherRoom.value.played.length}` },
+]);
+const lobbyTabs = [
+  { key: "create", label: "创建房间" },
+  { key: "join", label: "加入房间" },
+];
+const roomMenu = computed<DropdownMenuItem[]>(() => [
+  {
+    key: "leave",
+    label: "退出房间",
+    icon: markRaw(IconLucideLogOut),
+    disabled: pending.has("room"),
+  },
+]);
+const pushTracks = computed(() =>
+  keyword.value.trim()
+    ? results.value
+    : history.tracks.filter((track) => track.source === "netease").slice(0, 20),
+);
 const queuedIds = computed(() => new Set(togetherRoom.value.queue.map((song) => song.songId)));
 const inviteLink = computed(() => {
   const room = togetherRoom.value;
@@ -66,6 +95,7 @@ const lyricPreview = computed(() => {
     active: Math.max(0, index - 2) + offset === index,
   }));
 });
+const activeLyric = computed(() => lyricPreview.value.find((line) => line.active));
 const progress = computed(() =>
   status.duration > 0 ? Math.min(100, (status.position / status.duration) * 100) : 0,
 );
@@ -149,6 +179,7 @@ watch(keyword, scheduleSearch);
 
 const focusPush = async (): Promise<void> => {
   pushOpen.value = true;
+  void history.load();
   await nextTick();
   searchArea.value?.querySelector("input")?.focus({ preventScroll: true });
 };
@@ -170,524 +201,459 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="room-shell mx-auto w-full max-w-7xl px-5 pb-10 pt-3">
-    <div class="mb-7 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <div class="mb-1 text-xs text-on-surface-variant/60">网易云官方房间</div>
-        <h1 class="text-3xl font-bold text-on-surface">多人一起听</h1>
-        <p class="mt-2 text-sm text-on-surface-variant">
-          {{
-            togetherRoom.inRoom
-              ? `${togetherRoom.memberCount} 人在线 · 所有人听同一首歌`
-              : "和好友一起听，推歌会进入同一个房间队列"
-          }}
-        </p>
+  <div class="flex h-full flex-col text-on-surface">
+    <div class="shrink-0 px-5 pb-2">
+      <div class="mb-5 mt-2 flex items-center justify-between gap-4">
+        <h1 class="text-3xl font-bold text-balance">多人一起听</h1>
+        <SPopover v-if="togetherRoom.inRoom" align="end">
+          <template #trigger>
+            <SButton variant="ghost" round size="small" aria-label="查看房间成员">
+              <span class="mr-1 flex -space-x-2" aria-hidden="true">
+                <span
+                  v-for="member in togetherRoom.members.slice(0, 3)"
+                  :key="member.userId"
+                  class="flex size-6 items-center justify-center overflow-hidden rounded-full bg-primary/15 ring-2 ring-surface text-xs text-primary"
+                >
+                  <img
+                    v-if="member.avatarUrl"
+                    :src="member.avatarUrl"
+                    class="size-full object-cover"
+                    alt=""
+                  />
+                  <span v-else>{{ member.nickname.slice(0, 1) }}</span>
+                </span>
+              </span>
+              <span class="text-on-surface-variant">{{ togetherRoom.memberCount }} 人在线</span>
+              <IconLucideChevronDown class="ml-1 size-3.5 text-on-surface-variant/60" />
+            </SButton>
+          </template>
+          <div class="w-64">
+            <div class="mb-3 text-sm font-medium">
+              正在一起听 · {{ togetherRoom.memberCount }} 人
+            </div>
+            <div class="max-h-72 overflow-y-auto">
+              <div
+                v-for="member in togetherRoom.members"
+                :key="member.userId"
+                class="flex items-center gap-3 py-2"
+              >
+                <span
+                  class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-primary"
+                >
+                  <img
+                    v-if="member.avatarUrl"
+                    :src="member.avatarUrl"
+                    class="size-full object-cover"
+                    alt=""
+                  />
+                  <span v-else>{{ member.nickname.slice(0, 1) }}</span>
+                </span>
+                <span class="truncate text-sm">{{ member.nickname }}</span>
+              </div>
+              <p v-if="!togetherRoom.members.length" class="py-2 text-sm text-on-surface-variant">
+                正在获取成员信息…
+              </p>
+            </div>
+          </div>
+        </SPopover>
+        <span v-else class="text-sm text-on-surface-variant/50">网易云官方房间</span>
       </div>
-      <div v-if="togetherRoom.inRoom" class="flex flex-wrap gap-2">
-        <SButton type="primary" variant="secondary" round @click="focusPush">
-          <template #icon><IconLucideListPlus /></template>
-          推歌
-        </SButton>
-        <SButton variant="tertiary" round @click="copy(inviteLink)">
-          <template #icon><IconLucideLink /></template>
-          邀请好友
-        </SButton>
-        <SButton
-          variant="ghost"
-          round
-          :loading="pending.has('room')"
-          @click="run('leave', 'together-leave')"
-        >
-          退出房间
-        </SButton>
-      </div>
+
+      <SAlert v-if="roomError" type="error" class="mb-4">{{ roomError }}</SAlert>
+      <SAlert v-else-if="togetherRoom.syncError" type="warning" class="mb-4">
+        {{ togetherRoom.syncError }}
+      </SAlert>
+
+      <template v-if="togetherRoom.inRoom">
+        <div class="flex gap-5 pb-5">
+          <SImg
+            :src="currentTrack?.cover"
+            :alt="currentTrack?.title"
+            class="size-32 shrink-0 rounded-xl sm:size-40"
+          />
+          <div class="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+            <div class="min-w-0">
+              <div class="mb-2 flex items-center gap-2 text-xs text-primary">
+                <IconLucideHeadphones class="size-3.5" />
+                {{ togetherRoom.paused ? "本机已暂停 · 房间继续播放" : "正在一起听" }}
+              </div>
+              <h2 class="truncate text-2xl font-bold leading-normal" :title="currentTrack?.title">
+                {{ currentTrack?.title || "等待房间播放歌曲" }}
+              </h2>
+              <div
+                class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-on-surface-variant"
+              >
+                <span>{{ artistNames(currentTrack) }}</span>
+                <span v-if="current?.recommendedBy" class="text-on-surface-variant/50">
+                  {{ recommender(current) }} 推荐
+                </span>
+              </div>
+            </div>
+            <SButton
+              variant="text"
+              size="auto"
+              class="my-2 w-fit max-w-full text-left"
+              @click="status.isPlayerExpanded = true"
+            >
+              <span class="truncate text-sm text-on-surface-variant/70">
+                {{ activeLyric?.text || "查看歌词" }}
+              </span>
+              <IconLucideChevronRight class="ml-1 size-3.5 shrink-0 text-on-surface-variant/40" />
+            </SButton>
+            <div class="mt-3 max-w-2xl" title="进度跟随官方房间同步">
+              <div
+                class="h-1 overflow-hidden rounded-full bg-on-surface/8"
+                role="progressbar"
+                aria-label="房间播放进度"
+                :aria-valuenow="localMatchesRoom ? Math.round(progress) : 0"
+                :aria-valuemin="0"
+                :aria-valuemax="100"
+              >
+                <div
+                  class="h-full rounded-full bg-primary/70"
+                  :style="{ width: `${localMatchesRoom ? progress : 0}%` }"
+                />
+              </div>
+              <div
+                class="mt-2 flex items-center justify-between text-xs tabular-nums text-on-surface-variant/50"
+              >
+                <span>{{ localMatchesRoom ? clock(status.position) : "00:00" }}</span>
+                <span>{{ clock(currentTrack?.duration || status.duration) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-2">
+          <div class="flex items-center gap-3">
+            <SButton type="primary" variant="secondary" round @click="focusPush">
+              <template #icon><IconLucideListPlus /></template>
+              推歌
+            </SButton>
+            <SButton variant="secondary" round @click="copy(inviteLink)">
+              <template #icon><IconLucideLink /></template>
+              邀请好友
+            </SButton>
+            <SDropdownMenu :items="roomMenu" align="start" @select="run('leave', 'together-leave')">
+              <template #trigger>
+                <SButton
+                  variant="secondary"
+                  circle
+                  aria-label="更多房间操作"
+                  :loading="pending.has('room')"
+                >
+                  <template #icon><IconLucideEllipsis /></template>
+                </SButton>
+              </template>
+            </SDropdownMenu>
+          </div>
+          <div class="w-52 shrink-0">
+            <STabs v-model="activeTab" :tabs="queueTabs" type="segment" round />
+          </div>
+        </div>
+      </template>
     </div>
 
-    <SAlert v-if="roomError" type="error" class="mb-5">{{ roomError }}</SAlert>
-    <SAlert v-else-if="togetherRoom.syncError" type="warning" class="mb-5">
-      {{ togetherRoom.syncError }}
-    </SAlert>
-
-    <template v-if="!togetherRoom.inRoom">
-      <div class="grid gap-5 md:grid-cols-2">
-        <section class="room-panel bg-surface-panel">
-          <h2 class="text-lg font-semibold">创建房间</h2>
-          <p class="mt-2 text-sm text-on-surface-variant">
-            已有官方房间会先恢复；否则以当前网易云歌曲创建。
-          </p>
-          <div class="mt-5 rounded-xl bg-primary/5 p-4">
-            <div class="font-medium">{{ media.track?.title || "还没有播放歌曲" }}</div>
-            <div class="mt-1 text-sm text-on-surface-variant">{{ artistNames(media.track) }}</div>
+    <template v-if="togetherRoom.inRoom">
+      <div v-if="visibleSongs.length" class="flex min-h-48 flex-1 flex-col">
+        <div
+          class="mx-3 flex h-10 shrink-0 items-center gap-3 pl-5 pr-6 text-xs text-on-surface-variant/50"
+        >
+          <span class="w-8 shrink-0 text-center">#</span>
+          <span class="min-w-0 flex-1">歌曲</span>
+          <span class="hidden w-36 shrink-0 md:block">推荐人</span>
+          <span class="w-28 shrink-0 text-center">
+            {{ activeTab === "upcoming" ? "置顶" : "推歌" }}
+          </span>
+          <span class="w-8 shrink-0" />
+          <span class="hidden w-14 shrink-0 text-center lg:block">时长</span>
+        </div>
+        <div class="min-h-0 flex-1">
+          <SVirtualList
+            :key="activeTab"
+            :items="visibleSongs"
+            :item-height="88"
+            item-fixed
+            height="100%"
+            :get-item-key="
+              (song: RoomSong, index: number) => song.songBizId || `${index}-${song.songId}`
+            "
+          >
+            <template #default="{ item: song, index }: { item: RoomSong; index: number }">
+              <div class="px-3 pb-3">
+                <div
+                  class="group flex h-19 items-center gap-3 rounded-xl border-2 border-solid border-primary/12 bg-surface-panel pl-3 pr-6 transition-colors hover:border-primary/30 hover:bg-on-surface/8"
+                >
+                  <span
+                    class="w-8 shrink-0 text-center text-sm font-bold tabular-nums text-on-surface-variant/60"
+                  >
+                    {{ index + 1 }}
+                  </span>
+                  <div class="flex min-w-0 flex-1 items-center gap-3">
+                    <SImg :src="song.track?.cover" class="size-12 shrink-0 rounded-lg" />
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate text-base font-medium" :title="songTitle(song)">
+                        {{ songTitle(song) }}
+                      </div>
+                      <div class="mt-1 truncate text-sm text-on-surface-variant">
+                        {{ artistNames(song.track) }}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="hidden w-36 shrink-0 truncate text-sm text-on-surface-variant/60 md:block"
+                  >
+                    {{
+                      song.recommendedBy
+                        ? recommender(song)
+                        : activeTab === "upcoming"
+                          ? "系统推荐"
+                          : "—"
+                    }}
+                  </div>
+                  <div class="flex w-28 shrink-0 justify-center">
+                    <SButton
+                      v-if="activeTab === 'upcoming'"
+                      :type="song.pinned ? 'primary' : 'default'"
+                      variant="ghost"
+                      size="small"
+                      round
+                      :loading="pending.has(song.songId)"
+                      :disabled="song.pinned"
+                      :title="`${song.pinned ? '你已置顶' : '置顶这首歌'} · ${song.pinCount ?? '—'} 次置顶`"
+                      :aria-label="`${song.pinned ? '已置顶' : '置顶'} ${songTitle(song)}，${song.pinCount ?? '未知'} 次`"
+                      @click="
+                        run('pin', 'together-pin', roomTrack(song), { songBizId: song.songBizId })
+                      "
+                    >
+                      <template #icon><IconLucideArrowUpToLine /></template>
+                      <span class="tabular-nums">{{ song.pinCount ?? "—" }}</span>
+                      <IconLucideCheck v-if="song.pinned" class="ml-1 size-3" />
+                    </SButton>
+                    <SButton
+                      v-else
+                      variant="ghost"
+                      size="small"
+                      round
+                      :loading="pending.has(song.songId)"
+                      :disabled="queuedIds.has(song.songId)"
+                      @click="run('push', 'together-push', roomTrack(song))"
+                    >
+                      <template #icon>
+                        <IconLucideCheck v-if="queuedIds.has(song.songId)" />
+                        <IconLucidePlus v-else />
+                      </template>
+                      {{ queuedIds.has(song.songId) ? "已在待播" : "推歌" }}
+                    </SButton>
+                  </div>
+                  <SButton
+                    variant="ghost"
+                    size="small"
+                    circle
+                    class="shrink-0"
+                    title="让整个房间播放这首歌"
+                    :aria-label="`让房间播放 ${songTitle(song)}`"
+                    :disabled="pending.has(song.songId)"
+                    @click="
+                      run(
+                        'goto',
+                        'together-goto',
+                        roomTrack(song),
+                        song.songBizId ? { songBizId: song.songBizId } : undefined,
+                      )
+                    "
+                  >
+                    <template #icon><IconLucidePlay /></template>
+                  </SButton>
+                  <span
+                    class="hidden w-14 shrink-0 text-center text-sm tabular-nums text-on-surface-variant/50 lg:block"
+                  >
+                    {{ song.track ? clock(song.track.duration) : "—" }}
+                  </span>
+                </div>
+              </div>
+            </template>
+          </SVirtualList>
+        </div>
+      </div>
+      <div v-else class="flex min-h-48 flex-1 items-center justify-center">
+        <div class="text-center text-on-surface-variant/50">
+          <IconLucideListMusic class="mx-auto mb-3 size-12 opacity-30" />
+          <div class="text-sm">
+            {{
+              activeTab === "upcoming"
+                ? "还没有待播歌曲，推荐一首喜欢的吧"
+                : "加入房间后听过的歌曲会显示在这里"
+            }}
           </div>
-          <div class="mt-5 flex flex-wrap gap-2">
-            <SButton type="primary" round :loading="pending.has('room')" @click="createRoom">
-              创建或恢复房间
+          <SButton
+            v-if="activeTab === 'upcoming'"
+            type="primary"
+            variant="text"
+            class="mt-3"
+            @click="focusPush"
+          >
+            推歌到房间
+          </SButton>
+        </div>
+      </div>
+    </template>
+
+    <div v-else class="px-5 pb-8">
+      <p class="text-sm text-on-surface-variant/60">
+        和朋友听同一首歌，一起推荐接下来要播放的音乐。
+      </p>
+      <div class="mt-8 max-w-2xl">
+        <div class="mb-7 w-56">
+          <STabs v-model="lobbyTab" :tabs="lobbyTabs" type="segment" round />
+        </div>
+        <div v-if="lobbyTab === 'create'">
+          <div class="flex items-center gap-5">
+            <SImg :src="media.track?.cover" class="size-32 shrink-0 rounded-xl" />
+            <div class="min-w-0">
+              <div class="mb-2 text-xs text-on-surface-variant/50">从这首歌开始</div>
+              <h2 class="truncate text-2xl font-bold">
+                {{ media.track?.title || "先选一首喜欢的歌" }}
+              </h2>
+              <p class="mt-2 text-sm text-on-surface-variant">
+                {{
+                  media.track ? artistNames(media.track) : "播放网易云歌曲后，就可以邀请朋友一起听"
+                }}
+              </p>
+            </div>
+          </div>
+          <div class="mt-6 flex flex-wrap items-center gap-3">
+            <SButton
+              type="primary"
+              variant="secondary"
+              round
+              :loading="pending.has('room')"
+              @click="createRoom"
+            >
+              <template #icon><IconLucidePlus /></template>
+              创建房间
             </SButton>
             <SButton
-              variant="tertiary"
-              round
+              variant="text"
               :disabled="pending.has('room')"
               @click="run('resume', 'together-resume')"
             >
               恢复已有房间
             </SButton>
           </div>
-        </section>
-        <section class="room-panel bg-surface-panel">
-          <h2 class="text-lg font-semibold">加入好友房间</h2>
-          <p class="mt-2 text-sm text-on-surface-variant">粘贴网易云手机端“多人一起听”邀请链接。</p>
-          <SInput
-            v-model="roomLink"
-            type="textarea"
-            :rows="3"
-            class="mt-5"
-            placeholder="https://st.music.163.com/listen-together/multishare/…"
-          />
-          <div class="mt-3 flex gap-2">
-            <SButton variant="tertiary" round @click="pasteLink">粘贴链接</SButton>
-            <SButton type="primary" round :loading="pending.has('room')" @click="joinRoom">
+        </div>
+        <div v-else class="max-w-xl">
+          <SFormItem label="好友的邀请链接">
+            <SInput
+              v-model="roomLink"
+              type="textarea"
+              :rows="4"
+              placeholder="粘贴网易云“多人一起听”邀请链接，也可以粘贴整段分享文案"
+            />
+          </SFormItem>
+          <div class="mt-5 flex items-center gap-3">
+            <SButton
+              type="primary"
+              variant="secondary"
+              round
+              :loading="pending.has('room')"
+              @click="joinRoom"
+            >
+              <template #icon><IconLucideUsers /></template>
               加入房间
             </SButton>
-          </div>
-        </section>
-      </div>
-    </template>
-
-    <template v-else>
-      <section class="room-panel room-hero bg-surface-panel mb-5">
-        <div class="room-record-column">
-          <div class="room-record">
-            <img
-              v-if="currentTrack?.cover"
-              :src="currentTrack.cover"
-              class="room-record-cover"
-              alt="当前歌曲封面"
-            />
-            <span v-else class="room-record-placeholder">♫</span>
-          </div>
-          <div class="room-track-info">
-            <div class="room-eyebrow">
-              {{ togetherRoom.paused ? "本机已暂停 · 房间继续播放" : "正在一起听" }}
-            </div>
-            <h2>{{ currentTrack?.title || "等待房间播放歌曲" }}</h2>
-            <p>{{ artistNames(currentTrack) }}</p>
-            <p v-if="current?.recommendedBy" class="room-recommender">
-              由 {{ recommender(current) }} 推荐
-            </p>
-          </div>
-          <div v-if="localMatchesRoom" class="room-progress" title="进度由官方房间统一同步">
-            <div class="room-progress-track"><div :style="{ width: `${progress}%` }" /></div>
-            <div class="room-progress-time">
-              <span>{{ clock(status.position) }}</span>
-              <span>房间同步 · 不可拖动</span>
-              <span>{{ clock(status.duration) }}</span>
-            </div>
+            <SButton variant="text" @click="pasteLink">从剪贴板粘贴</SButton>
           </div>
         </div>
-        <div class="room-lyrics">
-          <div class="room-lyrics-header">
-            <span>歌词</span>
-            <SButton variant="text" size="small" @click="status.isPlayerExpanded = true">
-              查看完整歌词
-            </SButton>
-          </div>
-          <div v-if="lyricPreview.length" class="room-lyrics-lines">
-            <div
-              v-for="line in lyricPreview"
-              :key="line.key"
-              class="room-lyric-line"
-              :class="{ active: line.active }"
-            >
-              <div>{{ line.text }}</div>
-              <div v-if="line.translation" class="room-lyric-translation">
-                {{ line.translation }}
-              </div>
-            </div>
-          </div>
-          <p v-else class="room-lyrics-empty">房间歌曲的歌词会显示在这里</p>
-        </div>
-      </section>
-
-      <div
-        v-if="togetherRoom.members.length"
-        class="mb-5 flex flex-wrap items-center gap-2 text-sm"
-      >
-        <span class="mr-1 text-on-surface-variant">房间成员</span>
-        <span
-          v-for="member in togetherRoom.members"
-          :key="member.userId"
-          class="room-member inline-flex items-center gap-1.5 px-2 py-1"
-        >
-          <img
-            v-if="member.avatarUrl"
-            :src="member.avatarUrl"
-            class="size-5 rounded-full object-cover"
-            alt=""
-          />
-          {{ member.nickname }}
-        </span>
       </div>
+    </div>
 
-      <div>
-        <section class="room-panel bg-surface-panel min-w-0">
-          <div class="mb-5 flex items-center gap-1 border-b border-on-surface/10 pb-3">
-            <button
-              class="room-tab"
-              :class="{ 'room-tab-active': activeTab === 'upcoming' }"
-              @click="activeTab = 'upcoming'"
-            >
-              待播
-              <span class="room-tab-count">{{ upcoming.length }}</span>
-            </button>
-            <button
-              class="room-tab"
-              :class="{ 'room-tab-active': activeTab === 'played' }"
-              @click="activeTab = 'played'"
-            >
-              听过
-              <span class="room-tab-count">{{ togetherRoom.played.length }}</span>
-            </button>
-            <SButton class="ml-auto" type="primary" variant="text" size="small" @click="focusPush">
-              推歌
-            </SButton>
-          </div>
-          <div
-            v-if="activeTab === 'upcoming' && !upcoming.length"
-            class="py-10 text-center text-sm text-on-surface-variant"
+    <SDrawer
+      v-if="togetherRoom.inRoom"
+      v-model:open="pushOpen"
+      title="推歌到房间"
+      width="min(520px, 100vw)"
+    >
+      <section ref="searchArea" class="flex min-h-full flex-col">
+        <div class="sticky top-0 z-1 bg-surface-bright px-5 pb-3 pt-1">
+          <SInput
+            v-model="keyword"
+            round
+            clearable
+            placeholder="搜索歌曲或歌手"
+            @keyup.enter="search"
           >
-            房间还没有待播歌曲
-            <SButton type="primary" variant="text" size="small" @click="focusPush">去推歌</SButton>
-          </div>
-          <div
-            v-if="activeTab === 'played' && !togetherRoom.played.length"
-            class="py-10 text-center text-sm text-on-surface-variant"
-          >
-            进入房间后播放过的歌会显示在这里
-          </div>
-          <div
-            v-for="(song, index) in activeTab === 'upcoming' ? upcoming : togetherRoom.played"
-            :key="song.songBizId || `${activeTab}-${index}-${song.songId}`"
-            class="flex items-center gap-3 border-b border-primary/5 py-3 last:border-0"
-          >
-            <span class="w-6 shrink-0 text-center text-sm text-on-surface-variant">
-              {{ index + 1 }}
-            </span>
-            <img
-              v-if="song.track?.cover"
-              :src="song.track.cover"
-              class="size-11 rounded-lg object-cover"
-              alt=""
-            />
-            <div class="min-w-0 flex-1">
-              <div class="truncate font-medium">{{ songTitle(song) }}</div>
-              <div class="truncate text-xs text-on-surface-variant">
-                {{ artistNames(song.track) }}
-              </div>
-              <div v-if="song.recommendedBy" class="truncate text-xs text-primary/70">
-                {{ recommender(song) }} 推荐
-              </div>
-            </div>
-            <template v-if="activeTab === 'upcoming'">
-              <SButton
-                type="primary"
-                variant="tertiary"
-                size="small"
-                round
-                :loading="pending.has(song.songId)"
-                :disabled="song.pinned"
-                :title="song.pinned ? '你已置顶这首歌' : '置顶这首歌'"
-                @click="run('pin', 'together-pin', roomTrack(song), { songBizId: song.songBizId })"
-              >
-                <template #icon><IconLucideArrowUpToLine /></template>
-                {{ song.pinned ? "已置顶" : "置顶" }} {{ song.pinCount ?? "—" }}
-              </SButton>
-              <SButton
-                variant="ghost"
-                size="small"
-                :disabled="pending.has(song.songId)"
-                @click="
-                  run(
-                    'goto',
-                    'together-goto',
-                    roomTrack(song),
-                    song.songBizId ? { songBizId: song.songBizId } : undefined,
-                  )
-                "
-              >
-                播放
-              </SButton>
+            <template #prefix>
+              <IconLucideSearch class="size-4 text-on-surface-variant/40" />
             </template>
-            <template v-else>
-              <SButton
-                type="primary"
-                variant="ghost"
-                size="small"
-                :loading="pending.has(song.songId)"
-                :disabled="queuedIds.has(song.songId)"
-                @click="run('push', 'together-push', roomTrack(song))"
-              >
-                {{ queuedIds.has(song.songId) ? "已在待播" : "加入待播" }}
-              </SButton>
-              <SButton
-                variant="ghost"
-                size="small"
-                :disabled="pending.has(song.songId)"
-                @click="
-                  run(
-                    'goto',
-                    'together-goto',
-                    roomTrack(song),
-                    song.songBizId ? { songBizId: song.songBizId } : undefined,
-                  )
-                "
-              >
-                重播
-              </SButton>
-            </template>
-          </div>
-        </section>
-
-        <SDrawer v-model:open="pushOpen" title="推歌到房间" width="min(520px, 100vw)">
-          <section ref="searchArea" class="px-5 pb-5 min-w-0">
-            <p class="mt-1 text-sm text-on-surface-variant">
-              推荐的歌曲会出现在所有人的待播列表。播放由房间统一控制。
-            </p>
-            <div class="mt-4">
-              <SInput
-                v-model="keyword"
-                round
-                clearable
-                placeholder="搜索网易云歌曲或歌手"
-                @keyup.enter="search"
-              >
-                <template #prefix><IconLucideSearch class="size-4 opacity-50" /></template>
-              </SInput>
-            </div>
-            <div class="room-search-hint">
+          </SInput>
+          <div class="mt-4 flex items-center justify-between text-xs text-on-surface-variant/50">
+            <span>
               {{
                 searching
                   ? "正在搜索…"
                   : keyword.trim()
-                    ? `找到 ${results.length} 首 · 点击推歌加入待播`
-                    : "搜索后可连续推歌，无需重复打开页面"
+                    ? `搜索结果 · ${results.length} 首`
+                    : "最近播放"
               }}
-            </div>
-            <div class="mt-4 max-h-[34rem] overflow-y-auto">
-              <div
-                v-for="track in results"
-                :key="track.id"
-                class="flex items-center gap-3 border-b border-primary/5 py-3 last:border-0"
-              >
-                <img
-                  v-if="track.cover"
-                  :src="track.cover"
-                  class="size-10 rounded-lg object-cover"
-                  alt=""
-                />
-                <div class="min-w-0 flex-1">
-                  <div class="truncate font-medium">{{ track.title }}</div>
-                  <div class="truncate text-xs text-on-surface-variant">
-                    {{ artistNames(track) }}
-                  </div>
-                </div>
-                <SButton
-                  :type="queuedIds.has(String(track.id)) ? 'default' : 'primary'"
-                  :variant="queuedIds.has(String(track.id)) ? 'ghost' : 'secondary'"
-                  size="small"
-                  round
-                  :loading="pending.has(String(track.id))"
-                  :disabled="queuedIds.has(String(track.id))"
-                  @click="run('push', 'together-push', track)"
-                >
-                  <template #icon>
-                    <IconLucideCheck v-if="queuedIds.has(String(track.id))" />
-                    <IconLucidePlus v-else />
-                  </template>
-                  {{
-                    String(track.id) === togetherRoom.currentSongId
-                      ? "正在播放"
-                      : queuedIds.has(String(track.id))
-                        ? "已在待播"
-                        : "推歌"
-                  }}
-                </SButton>
+            </span>
+            <span>{{ upcoming.length }} 首待播</span>
+          </div>
+        </div>
+        <div v-if="pushTracks.length" class="px-3 pb-4">
+          <div
+            v-for="track in pushTracks"
+            :key="track.id"
+            class="mb-2 flex items-center gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-on-surface/5"
+          >
+            <SImg :src="track.cover" class="size-12 shrink-0 rounded-lg" />
+            <div class="min-w-0 flex-1">
+              <div class="truncate font-medium">{{ track.title }}</div>
+              <div class="mt-1 truncate text-sm text-on-surface-variant/60">
+                {{ artistNames(track) }}
               </div>
             </div>
-          </section>
-        </SDrawer>
-      </div>
-    </template>
+            <SButton
+              :type="queuedIds.has(String(track.id)) ? 'default' : 'primary'"
+              :variant="queuedIds.has(String(track.id)) ? 'ghost' : 'secondary'"
+              size="small"
+              round
+              :loading="pending.has(String(track.id))"
+              :disabled="queuedIds.has(String(track.id))"
+              @click="run('push', 'together-push', track)"
+            >
+              <template #icon>
+                <IconLucideCheck v-if="queuedIds.has(String(track.id))" />
+                <IconLucidePlus v-else />
+              </template>
+              {{
+                String(track.id) === togetherRoom.currentSongId
+                  ? "正在播放"
+                  : queuedIds.has(String(track.id))
+                    ? "已在待播"
+                    : "推歌"
+              }}
+            </SButton>
+          </div>
+        </div>
+        <div
+          v-else
+          class="flex flex-1 items-center justify-center px-8 py-20 text-center text-on-surface-variant/50"
+        >
+          <div>
+            <SLoading v-if="searching" class="mx-auto mb-3 text-3xl text-primary/70" />
+            <IconLucideSearch v-else class="mx-auto mb-3 size-10 opacity-30" />
+            <p class="text-sm">
+              {{
+                searching
+                  ? "正在寻找歌曲"
+                  : keyword.trim()
+                    ? "没有找到歌曲，换个关键词试试"
+                    : "搜索喜欢的音乐，推荐给房间里的朋友"
+              }}
+            </p>
+          </div>
+        </div>
+      </section>
+    </SDrawer>
   </div>
 </template>
-
-<style scoped>
-.room-shell {
-  min-height: 100%;
-  color: rgb(var(--s-on-surface));
-}
-.room-panel {
-  min-width: 0;
-  border: 1px solid rgb(var(--s-primary) / 0.15);
-  border-radius: 18px;
-  padding: 22px;
-}
-.room-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 26px;
-  min-height: 340px;
-}
-.room-record-column {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.room-record {
-  width: min(178px, 48vw);
-  aspect-ratio: 1;
-  display: grid;
-  place-items: center;
-  border: 7px solid #232726;
-  border-radius: 50%;
-  background: repeating-radial-gradient(circle at center, #181c1b 0 4px, #222927 5px 8px);
-  box-shadow: 0 12px 26px rgb(0 0 0 / 20%);
-}
-.room-record-cover {
-  width: 62%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  object-fit: cover;
-}
-.room-record-placeholder {
-  color: rgb(var(--s-primary));
-  font-size: 60px;
-}
-.room-track-info {
-  width: 100%;
-  margin-top: 20px;
-  text-align: center;
-}
-.room-eyebrow {
-  color: rgb(var(--s-primary));
-  font-size: 12px;
-  font-weight: 600;
-}
-.room-track-info h2 {
-  margin: 7px 0 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 22px;
-  font-weight: 700;
-}
-.room-track-info p {
-  margin: 0;
-  color: rgb(var(--s-on-surface) / 0.6);
-}
-.room-track-info .room-recommender {
-  margin-top: 5px;
-  font-size: 12px;
-}
-.room-progress {
-  width: 100%;
-  max-width: 440px;
-  margin-top: 20px;
-}
-.room-progress-track {
-  height: 4px;
-  overflow: hidden;
-  border-radius: 5px;
-  background: rgb(var(--s-on-surface) / 0.1);
-}
-.room-progress-track > div {
-  height: 100%;
-  background: rgb(var(--s-primary));
-}
-.room-progress-time {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 8px;
-  color: rgb(var(--s-on-surface) / 0.48);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-.room-lyrics {
-  min-width: 0;
-  padding: 8px 0 8px 24px;
-  border-left: 1px solid rgb(var(--s-on-surface) / 0.08);
-}
-.room-lyrics-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  font-weight: 600;
-}
-.room-lyrics-lines {
-  max-height: 300px;
-  overflow: hidden;
-  mask-image: linear-gradient(to bottom, transparent, black 14%, black 84%, transparent);
-}
-.room-lyric-line {
-  margin: 0 0 13px;
-  color: rgb(var(--s-on-surface) / 0.5);
-  font-size: 15px;
-  line-height: 1.45;
-}
-.room-lyric-line.active {
-  color: rgb(var(--s-on-surface));
-  font-size: 18px;
-  font-weight: 650;
-}
-.room-lyric-translation {
-  margin-top: 3px;
-  font-size: 0.82em;
-}
-.room-lyrics-empty,
-.room-search-hint {
-  color: rgb(var(--s-on-surface) / 0.5);
-  font-size: 12px;
-}
-.room-member {
-  border: 1px solid rgb(var(--s-primary) / 0.12);
-  border-radius: 999px;
-  background: rgb(var(--s-on-surface) / 0.05);
-}
-.room-tab {
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: rgb(var(--s-on-surface) / 0.6);
-  padding: 7px 12px;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.room-tab:hover {
-  background: rgb(var(--s-on-surface) / 0.06);
-}
-.room-tab-active {
-  background: rgb(var(--s-on-surface) / 0.1);
-  color: rgb(var(--s-on-surface));
-  font-weight: 600;
-}
-.room-tab-count {
-  margin-left: 3px;
-  opacity: 0.6;
-  font-variant-numeric: tabular-nums;
-}
-@media (max-width: 780px) {
-  .room-hero {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-  .room-lyrics {
-    border-left: 0;
-    border-top: 1px solid rgb(var(--s-on-surface) / 0.08);
-    padding: 18px 0 0;
-  }
-}
-</style>
