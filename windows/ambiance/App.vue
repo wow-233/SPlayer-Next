@@ -39,8 +39,22 @@ const tick = (): void => {
   raf = requestAnimationFrame(tick);
 };
 
+/** 播放中才持续跑 RAF；暂停时冻结当前帧，恢复时先校正一帧再继续 */
+const syncRafLoop = (): void => {
+  if (playing.value) {
+    if (!raf) {
+      nowMs.value = getNowPlayingCurrentMs();
+      raf = requestAnimationFrame(tick);
+    }
+  } else if (raf) {
+    cancelAnimationFrame(raf);
+    raf = 0;
+  }
+};
+
+watch(playing, syncRafLoop, { immediate: true });
+
 onMounted(async () => {
-  tick();
   try {
     const saved = (await window.api.config.get("ambiance")) as AmbianceSettings | undefined;
     if (saved) Object.assign(config, saved);
@@ -52,6 +66,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (raf) cancelAnimationFrame(raf);
+  raf = 0;
   unsubConfig?.();
   unsubConfig = null;
 });
@@ -61,9 +76,7 @@ const lineText = (line: LyricLine | null | undefined): string =>
 
 const current = computed(() => (primaryIndex.value >= 0 ? lyric.value[primaryIndex.value] : null));
 const prev = computed(() => (primaryIndex.value > 0 ? lyric.value[primaryIndex.value - 1] : null));
-const next = computed(() =>
-  primaryIndex.value >= 0 ? lyric.value[primaryIndex.value + 1] : null,
-);
+const next = computed(() => (primaryIndex.value >= 0 ? lyric.value[primaryIndex.value + 1] : null));
 const cover = computed(() => track.value?.coverOriginal ?? track.value?.cover ?? "");
 const title = computed(() => track.value?.title ?? "SPlayer-Next");
 const artists = computed(() => formatArtists(track.value?.artists) || "暂无播放");
@@ -74,6 +87,19 @@ const nextText = computed(() => lineText(next.value));
 const translationText = computed(() => current.value?.translatedLyric ?? "");
 const hasWordByWord = computed(() => (current.value?.words.length ?? 0) > 1);
 
+/**
+ * 已播放词数：模板只依赖该值而非 nowMs，
+ * 组件仅在跨越词时间边界时重新渲染（而非每帧）
+ */
+const activeWordCount = computed(() => {
+  const line = current.value;
+  if (!line || line.words.length <= 1) return 0;
+  const ms = nowMs.value;
+  let count = 0;
+  for (const w of line.words) if (ms >= w.startTime) count += 1;
+  return count;
+});
+
 const rootStyle = computed(() => ({
   "--amb-blur": `${config.backgroundBlur}px`,
   "--amb-scale": String(config.fontScale),
@@ -82,7 +108,11 @@ const rootStyle = computed(() => ({
 
 <template>
   <div class="ambiance" :class="{ paused: !playing }" :style="rootStyle">
-    <div class="bg" :style="cover ? { backgroundImage: `url(${cover})` } : undefined" aria-hidden="true" />
+    <div
+      class="bg"
+      :style="cover ? { backgroundImage: `url(${cover})` } : undefined"
+      aria-hidden="true"
+    />
     <div class="bg-mask" aria-hidden="true" />
 
     <div class="stage">
@@ -107,9 +137,10 @@ const rootStyle = computed(() => ({
                 v-for="(w, i) in current.words"
                 :key="i"
                 class="word"
-                :class="{ played: nowMs >= w.startTime }"
-                >{{ w.word }}</span
+                :class="{ played: i < activeWordCount }"
               >
+                {{ w.word }}
+              </span>
             </template>
             <template v-else>{{ currentText }}</template>
           </template>
@@ -179,7 +210,9 @@ const rootStyle = computed(() => ({
   border-radius: 1.5rem;
   object-fit: cover;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
-  transition: transform 0.6s ease, opacity 0.6s ease;
+  transition:
+    transform 0.6s ease,
+    opacity 0.6s ease;
 }
 
 .paused .cover {
