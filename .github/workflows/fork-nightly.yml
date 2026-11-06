@@ -173,5 +173,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "v$APP_VERSION" \
             --notes-file notes.md \
-            --prerelease \
             release-assets/*
