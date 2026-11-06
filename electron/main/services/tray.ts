@@ -5,11 +5,13 @@ import { appName, isWin } from "@main/utils/config";
 import { loadIcon, loadThemedIcon } from "@main/utils/icon";
 import { t } from "@main/utils/i18n";
 import { trayLog } from "@main/utils/logger";
+import { store } from "@main/store";
 import {
   toggleDesktopLyricWindow,
   toggleDynamicIslandWindow,
   toggleTaskbarLyricWindow,
   toggleAmbianceWindow,
+  toggleDynamicIslandClickThrough,
   focusMainWindow,
 } from "@main/window";
 
@@ -120,6 +122,14 @@ const buildMenu = (): Menu => {
       label: dynamicIslandOpen ? t("closeDynamicIsland") : t("openDynamicIsland"),
       icon: menuIcon("lyric"),
       click: () => toggleDynamicIslandWindow(),
+    },
+    // 灵动岛穿透（锁定）：开启后鼠标点击穿透、不可拖拽，悬停时渐隐
+    {
+      label: t("islandClickThrough"),
+      icon: menuIcon("lyric"),
+      type: "checkbox",
+      checked: store.get("dynamicIsland").nonOcclusive,
+      click: () => toggleDynamicIslandClickThrough(),
     },
     // 任务栏歌词
     ...(isWin

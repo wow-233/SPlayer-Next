@@ -191,7 +191,7 @@ const config: Configuration = {
   },
   publish: {
     provider: "github",
-    owner: "SPlayer-Dev",
+    owner: "wow-233",
     repo: "SPlayer-Next",
     channel: updateChannel,
   },

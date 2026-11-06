@@ -170,6 +170,8 @@ export interface DynamicIslandSettings {
   notchFusion: boolean;
   /** 非遮挡模式 */
   nonOcclusive: boolean;
+  /** 穿透模式下未悬停时的整体不透明度（0.15 ~ 1），1 = 常规不透明 */
+  idleOpacity: number;
   /** 总是双行 */
   doubleLine: boolean;
   /** 显示翻译 */

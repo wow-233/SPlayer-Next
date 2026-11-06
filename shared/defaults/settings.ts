@@ -74,6 +74,7 @@ export const defaultSystemConfig: SystemConfig = {
     snapCentered: true,
     notchFusion: false,
     nonOcclusive: false,
+    idleOpacity: 1,
     doubleLine: false,
     showTranslation: false,
     useCSSDrag: false,

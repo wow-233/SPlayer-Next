@@ -125,6 +125,36 @@ afterEach(() => {
 });
 
 describe("在线歌曲暂停后地址失效恢复", () => {
+  it("房间内音源失效只请求重试，不跳过全房间当前歌曲", async () => {
+    const { togetherRoom } = await import("@/services/listenTogether");
+    togetherRoom.value = { ...togetherRoom.value, inRoom: true, roomId: "room" };
+    const invokeMenu = vi.fn().mockResolvedValue({ ok: true });
+    Object.assign(window.api, { plugins: { invokeMenu } });
+
+    await events.handleEvent({ type: "sourceError" });
+
+    expect(invokeMenu).toHaveBeenCalledExactlyOnceWith({
+      pluginId: "splayer.netease-together",
+      menuId: "together-retry",
+      track: undefined,
+      data: undefined,
+    });
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(status.playIndex).toBe(0);
+  });
+
+  it("房间内恢复播放先通过插件对齐官方进度", async () => {
+    const { togetherRoom } = await import("@/services/listenTogether");
+    togetherRoom.value = { ...togetherRoom.value, inRoom: true, roomId: "room" };
+    const invokeMenu = vi.fn().mockResolvedValue({ ok: true });
+    Object.assign(window.api, { plugins: { invokeMenu } });
+
+    await player.play();
+
+    expect(invokeMenu).toHaveBeenCalledWith(expect.objectContaining({ menuId: "together-play" }));
+    expect(mocks.play).not.toHaveBeenCalled();
+  });
+
   it("暂停数小时后恢复，重新获取官方地址并从原进度续播当前歌曲", async () => {
     await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000);
     expect(playback.getCurrentTime()).toBe(resumePosition);

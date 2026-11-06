@@ -15,6 +15,7 @@ interface MainMessages {
   closeDesktopLyric: string;
   openDynamicIsland: string;
   closeDynamicIsland: string;
+  islandClickThrough: string;
   openTaskbarLyric: string;
   closeTaskbarLyric: string;
   loginNetease: string;
@@ -39,6 +40,7 @@ const messages: Record<LocaleCode, MainMessages> = {
     closeDesktopLyric: "关闭桌面歌词",
     openDynamicIsland: "开启灵动岛",
     closeDynamicIsland: "关闭灵动岛",
+    islandClickThrough: "灵动岛穿透（锁定）",
     openTaskbarLyric: "开启任务栏歌词",
     closeTaskbarLyric: "关闭任务栏歌词",
     loginNetease: "登录 NCM",
@@ -61,6 +63,7 @@ const messages: Record<LocaleCode, MainMessages> = {
     closeDesktopLyric: "Close Desktop Lyric",
     openDynamicIsland: "Open Dynamic Island",
     closeDynamicIsland: "Close Dynamic Island",
+    islandClickThrough: "Island Click-through (Lock)",
     openTaskbarLyric: "Open Taskbar Lyric",
     closeTaskbarLyric: "Close Taskbar Lyric",
     loginNetease: "Log in to NCM",
