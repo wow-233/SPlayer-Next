@@ -36,5 +36,12 @@ jobs:
           fi
           echo "官方 dev 新提交数: $(git rev-list --count HEAD..upstream/dev)"
           git rebase upstream/dev
+      - name: Verify (typecheck + web tests)
+        run: |
+          curl -fsSL https://pnpm.io/install.sh | sh -
+          echo "$HOME/.local/share/pnpm" >> "$GITHUB_PATH"
+          pnpm install --ignore-scripts
+          pnpm typecheck
+          pnpm test:web
       - name: Push
         run: git push --force-with-lease origin feat/netease-listen-together-local
