@@ -12,6 +12,8 @@ export default defineConfig({
     __APP_REPO_NAME__: JSON.stringify(pkg.productName),
     __APP_AUTHOR__: JSON.stringify(pkg.author.name),
     __APP_HOMEPAGE__: JSON.stringify(pkg.homepage),
+    __IS_FORK_BUILD__: JSON.stringify(pkg.repository?.url?.includes("wow-233") === true),
+    __SYNC_BASE_DATE__: JSON.stringify("1970-01-01T00:00:00+08:00"),
     __APP_AUTHOR_URL__: JSON.stringify(pkg.author.url),
   },
   resolve: {
