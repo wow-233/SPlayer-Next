@@ -11,15 +11,45 @@ import { useStatusStore } from "@/stores/status";
 import { useCopyText } from "@/composables/useCopyText";
 import { toast } from "@/composables/useToast";
 import {
+  TOGETHER_PLUGIN_ID,
   togetherRoom,
   roomError,
   refreshTogetherRoom,
   invokeTogether,
   type RoomSong,
 } from "@/services/listenTogether";
+import { usePluginsStore } from "@/stores/plugins";
+import { openExternal } from "@/utils/url";
+import { useSettingsDialog } from "@/settings/useSettingsDialog";
 
 const media = useMediaStore();
 const history = useHistoryStore();
+const pluginsStore = usePluginsStore();
+const { show: showSettings } = useSettingsDialog();
+
+/** 插件下载页（一般用户从这里获取插件包） */
+const PLUGIN_RELEASE_URL = "https://github.com/wow-233/splayer-netease-together/releases/latest";
+
+/** 一起听插件可用性：missing 未安装 / disabled 已停用 / notReady 未就绪 / ready 可用 */
+const pluginState = computed<"missing" | "disabled" | "notReady" | "ready">(() => {
+  const info = pluginsStore.list.find((item) => item.manifest.id === TOGETHER_PLUGIN_ID);
+  if (!info) return "missing";
+  if (!info.enabled) return "disabled";
+  return info.status.state === "ready" ? "ready" : "notReady";
+});
+
+const enablePlugin = async (): Promise<void> => {
+  if (pending.has("enable")) return;
+  pending.add("enable");
+  try {
+    await pluginsStore.setEnabled(TOGETHER_PLUGIN_ID, true);
+    toast.success("插件已启用");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "启用插件失败");
+  } finally {
+    pending.delete("enable");
+  }
+};
 const lobbyTab = ref("create");
 const status = useStatusStore();
 const { copy } = useCopyText();
@@ -196,7 +226,11 @@ const roomTrack = (song: RoomSong): Track =>
     duration: 0,
   };
 
-onMounted(() => void refreshTogetherRoom());
+onMounted(() => {
+  void refreshTogetherRoom();
+  // 拉取插件列表并等待一起听插件的首次状态上报，用于未安装引导
+  if (!pluginsStore.loaded) void pluginsStore.load(TOGETHER_PLUGIN_ID);
+});
 onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer);
   searchSequence += 1;
@@ -262,7 +296,9 @@ onBeforeUnmount(() => {
         <span v-else class="text-sm text-on-surface-variant/50">网易云官方房间</span>
       </div>
 
-      <SAlert v-if="roomError" type="error" class="mb-4">{{ roomError }}</SAlert>
+      <SAlert v-if="roomError && pluginState === 'ready'" type="error" class="mb-4">
+        {{ roomError }}
+      </SAlert>
       <SAlert v-else-if="togetherRoom.syncError" type="warning" class="mb-4">
         {{ togetherRoom.syncError }}
       </SAlert>
@@ -500,6 +536,64 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </template>
+
+    <!-- 插件未就绪：下载 / 启用引导 -->
+    <div
+      v-else-if="pluginState !== 'ready'"
+      class="flex min-h-48 flex-1 items-center justify-center px-5 pb-8"
+    >
+      <div class="max-w-md text-center">
+        <IconLucidePuzzle class="mx-auto mb-4 size-12 text-primary/60" />
+        <h2 class="text-lg font-semibold text-on-surface">
+          {{
+            pluginState === "missing"
+              ? "尚未安装一起听插件"
+              : pluginState === "disabled"
+                ? "一起听插件已停用"
+                : "一起听插件未就绪"
+          }}
+        </h2>
+        <p class="mt-2 text-sm leading-relaxed text-on-surface-variant/70">
+          <template v-if="pluginState === 'missing'">
+            从插件仓库下载 netease-listen-together.js，然后在 设置 → 插件管理 → 本地导入
+            安装即可创建或加入房间。
+          </template>
+          <template v-else-if="pluginState === 'disabled'">
+            插件已安装但处于停用状态，启用后即可创建或加入房间。
+          </template>
+          <template v-else>
+            插件已安装但未就绪，请在插件详情中确认已授予 netease 权限，或停用后重新启用。
+          </template>
+        </p>
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
+          <SButton
+            v-if="pluginState === 'missing'"
+            type="primary"
+            round
+            @click="openExternal(PLUGIN_RELEASE_URL)"
+          >
+            <template #icon><IconLucideDownload /></template>
+            下载插件
+          </SButton>
+          <SButton
+            v-if="pluginState === 'disabled'"
+            type="primary"
+            round
+            :loading="pending.has('enable')"
+            @click="enablePlugin"
+          >
+            启用插件
+          </SButton>
+          <SButton variant="secondary" round @click="showSettings('plugins')">插件管理</SButton>
+          <SButton v-if="pluginState !== 'missing'" variant="ghost" round @click="enablePlugin">
+            重新启用
+          </SButton>
+        </div>
+        <p class="mt-5 text-xs text-on-surface-variant/50">
+          插件仓库：github.com/wow-233/splayer-netease-together
+        </p>
+      </div>
+    </div>
 
     <div v-else class="px-5 pb-8">
       <p class="text-sm text-on-surface-variant/60">
