@@ -91,7 +91,8 @@ const createChannelAliases = (outDir, channel) => {
   const aliases = ALIAS_CHANNELS_MAP[channel] ?? [];
   for (const suffix of MANIFEST_SUFFIXES) {
     const source = path.join(outDir, `${channel}${suffix}.yml`);
-    if (!fs.existsSync(source)) throw new Error(`缺少更新清单: ${path.basename(source)}`);
+    // 单平台构建（如仅 Windows）没有其余平台的清单，跳过即可
+    if (!fs.existsSync(source)) continue;
     for (const alias of aliases) {
       fs.copyFileSync(source, path.join(outDir, `${alias}${suffix}.yml`));
     }
@@ -110,7 +111,8 @@ const validateManifests = (outDir, version, channel) => {
     for (const suffix of MANIFEST_SUFFIXES) {
       const name = `${current}${suffix}.yml`;
       const filePath = path.join(outDir, name);
-      if (!fs.existsSync(filePath)) throw new Error(`缺少更新清单: ${name}`);
+      // 单平台构建（如仅 Windows）没有其余平台的清单，跳过即可
+      if (!fs.existsSync(filePath)) continue;
 
       const doc = yaml.load(fs.readFileSync(filePath, "utf8"));
       if (doc.version !== version) throw new Error(`${name} 的版本不是 ${version}`);
@@ -168,6 +170,8 @@ const prepareReleaseAssets = (srcDir, outDir, version, releaseNotes) => {
   if (releaseNotes !== undefined) {
     for (const suffix of MANIFEST_SUFFIXES) {
       const manifest = path.join(outDir, `${channel}${suffix}.yml`);
+      // 单平台构建没有其余平台的清单
+      if (!fs.existsSync(manifest)) continue;
       const doc = yaml.load(fs.readFileSync(manifest, "utf8"));
       doc.releaseNotes = releaseNotes;
       fs.writeFileSync(manifest, yaml.dump(doc, { lineWidth: -1 }));
