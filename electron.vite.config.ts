@@ -10,7 +10,6 @@ import { FileSystemIconLoader } from "unplugin-icons/loaders";
 import RekaResolver from "reka-ui/resolver";
 import Components from "unplugin-vue-components/vite";
 import pkg from "./package.json" with { type: "json" };
-import builderConfig from "./electron-builder.config";
 
 /** 获取当前 git 提交 */
 const getGitCommit = (): string => {
@@ -30,28 +29,8 @@ const getGitDate = (): string => {
   }
 };
 
-/**
- * 自用构建的官方同步基线：HEAD 与 origin/dev 的 merge-base 提交日期。
- * 用于「检查更新」在 fork 构建下提示官方 dev 是否前移。
- */
-const getSyncBaseDate = (): string => {
-  try {
-    const base = execSync("git merge-base HEAD origin/dev").toString().trim();
-    return execSync(`git log -1 --format=%cI ${base}`).toString().trim() || getGitDate();
-  } catch {
-    return getGitDate();
-  }
-};
-
-/** 自用 fork 构建（publish owner 为 wow-233）：不参与在线更新，检查更新走官方 dev 提示 */
-const isForkBuild =
-  (builderConfig as { publish?: { owner?: string } }).publish?.owner === "wow-233";
-
 export default defineConfig({
   main: {
-    define: {
-      __IS_FORK_BUILD__: JSON.stringify(isForkBuild),
-    },
     publicDir: resolve(__dirname, "public"),
     build: {
       rolldownOptions: {
@@ -100,8 +79,6 @@ export default defineConfig({
       __APP_AUTHOR_URL__: JSON.stringify(pkg.author.url),
       __COMMIT_HASH__: JSON.stringify(getGitCommit()),
       __COMMIT_DATE__: JSON.stringify(getGitDate()),
-      __SYNC_BASE_DATE__: JSON.stringify(getSyncBaseDate()),
-      __IS_FORK_BUILD__: JSON.stringify(isForkBuild),
     },
     server: {
       port: 14558,
