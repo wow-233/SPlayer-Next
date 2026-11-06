@@ -1,0 +1,40 @@
+# 定时把官方 SPlayer-Dev/SPlayer-Next dev rebase 进自用分支，无冲突时自动推送。
+# 前提：先把本地分支推到 fork —— git push -u fork feat/netease-listen-together-local
+# 有冲突时本工作流失败，并在 Actions 页面留下错误标记，届时手动处理。
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 每天 UTC 2:00（北京时间 10:00）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/netease-listen-together-local
+          fetch-depth: 0
+      - name: Rebase onto upstream dev
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/SPlayer-Dev/SPlayer-Next.git
+          git fetch upstream dev
+          BASE=$(git merge-base HEAD upstream/dev)
+          if [ "$BASE" = "$(git rev-parse upstream/dev)" ]; then
+            echo "官方 dev 无新提交，跳过"
+            exit 0
+          fi
+          echo "官方 dev 新提交数: $(git rev-list --count HEAD..upstream/dev)"
+          git rebase upstream/dev
+      - name: Push
+        run: git push --force-with-lease origin feat/netease-listen-together-local

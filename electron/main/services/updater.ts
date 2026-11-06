@@ -13,6 +13,8 @@ const { autoUpdater } = electronUpdater;
 const RELEASES_URL = "https://github.com/wow-233/SPlayer-Next/releases";
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
+declare const __IS_FORK_BUILD__: boolean;
+
 /** 根据实际安装形式决定能力，解压版和开发环境只允许检查 */
 const getMode = (): UpdateMode => {
   if (isAppX) return "store";
@@ -165,6 +167,8 @@ const runCheck = (manual: boolean): void => {
  * @returns 请求处理后的即时快照，后续进展通过事件推送
  */
 export const checkForUpdates = (manual: boolean): UpdateState => {
+  // fork 自用构建不参与在线更新（检查更新由渲染层走官方 dev 提示）
+  if (__IS_FORK_BUILD__ && !manual) return getUpdateState();
   if (manual || store.get("update.autoCheck")) runCheck(manual);
   return getUpdateState();
 };
@@ -311,7 +315,7 @@ export const initUpdater = (): void => {
   removeListeners();
   autoUpdater.on("download-progress", onProgress);
   autoUpdater.on("error", onError);
-  if (!isDev && state.mode !== "store")
+  if (!isDev && state.mode !== "store" && !__IS_FORK_BUILD__)
     intervalTimer = setInterval(() => checkForUpdates(false), CHECK_INTERVAL_MS);
 };
 
