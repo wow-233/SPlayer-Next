@@ -1,0 +1,177 @@
+# 自用分支夜建：同步后把带定制功能的版本打包发布到 fork 的滚动 nightly 标签，
+# 客户端「检查更新 → 下载 → 安装」整条链路即可用（更新通道需选 nightly）。
+name: Fork Nightly Build
+
+on:
+  schedule:
+    # 上游同步工作流 02:00 UTC 运行，这里在其完成后构建
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-nightly-release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 24.x
+  BRANCH: feat/netease-listen-together-local
+
+jobs:
+  # 分支与上次发布无差异时跳过构建
+  check-commits:
+    name: Check for new commits
+    runs-on: ubuntu-latest
+    outputs:
+      has_new_commits: ${{ steps.check.outputs.has_new_commits }}
+      build_sha: ${{ steps.check.outputs.build_sha }}
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+
+      - name: Compare with latest nightly tag
+        id: check
+        shell: bash
+        run: |
+          echo "build_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/nightly" | awk '{print $1}')
+          CURRENT_SHA=$(git rev-parse HEAD)
+          echo "分支最新: $CURRENT_SHA / 上次构建: ${REMOTE_TAG_SHA:-无}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$REMOTE_TAG_SHA" ] && [ "$REMOTE_TAG_SHA" = "$CURRENT_SHA" ]; then
+            echo "自上次构建以来无新提交，跳过"
+            echo "has_new_commits=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "检测到新提交，启动构建"
+            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build Windows x64
+    needs: check-commits
+    if: needs.check-commits.outputs.has_new_commits == 'true'
+    runs-on: windows-latest
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.check-commits.outputs.build_sha }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Clean workspace
+        shell: bash
+        run: rm -rf dist out
+
+      - name: 移除 .npmrc（CI 不需要国内镜像）
+        shell: bash
+        run: rm -f .npmrc
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Nightly Version
+        shell: bash
+        run: node scripts/gen-version.cjs nightly
+
+      - name: Build Windows x64
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATE_CHANNEL: nightly
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: pnpm build:win --x64 --publish never
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SPlayer-Next-windows-x64
+          path: dist/*.*
+
+  release:
+    name: Publish Nightly Release
+    needs: [check-commits, build]
+    if: needs.check-commits.outputs.has_new_commits == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.check-commits.outputs.build_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Read Nightly Version
+        shell: bash
+        run: |
+          node scripts/gen-version.cjs nightly
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Generate Nightly release notes
+        run: node scripts/gen-nightly-notes.cjs notes.md
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/jsyaml" js-yaml@4.1.0
+          NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
+            node --test .github/scripts/prepare-release-assets.test.cjs
+          NODE_PATH="$RUNNER_TEMP/jsyaml/node_modules" \
+            node .github/scripts/prepare-release-assets.cjs artifacts release-assets "$APP_VERSION" notes.md
+          echo "待发布资源："
+          ls -1 release-assets
+
+      - name: Publish or Update Nightly Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NIGHTLY_TAG: nightly
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$NIGHTLY_TAG"
+          git push -f origin "$NIGHTLY_TAG"
+
+          if gh release view "$NIGHTLY_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "正在重置已有 Nightly Release..."
+            gh release delete "$NIGHTLY_TAG" --repo "$GITHUB_REPOSITORY" --yes
+          fi
+
+          gh release create "$NIGHTLY_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "v$APP_VERSION" \
+            --notes-file notes.md \
+            --prerelease \
+            release-assets/*

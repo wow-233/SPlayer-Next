@@ -4,42 +4,6 @@ import i18n from "@/i18n";
 
 const { t } = i18n.global;
 
-/** 官方上游仓库 dev 分支最新提交 */
-interface UpstreamTip {
-  sha: string;
-  commit: { committer: { date: string } };
-}
-
-/**
- * 自用 fork 构建不参与在线更新，改为提示官方上游 dev 是否前移
- * （同步动作由 scripts/sync-upstream.sh 或 fork 的定时工作流完成）
- */
-const checkOfficialDev = async (): Promise<void> => {
-  try {
-    const res = await fetch(
-      "https://api.github.com/repos/SPlayer-Dev/SPlayer-Next/commits?per_page=1",
-      {
-        headers: { Accept: "application/vnd.github+json" },
-      },
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const [tip] = (await res.json()) as UpstreamTip[];
-    const tipDate = tip.commit.committer.date;
-    if (tipDate > __SYNC_BASE_DATE__) {
-      toast.info(
-        `官方 dev 有新提交（${tip.sha.slice(0, 7)} · ${tipDate.slice(0, 10)}），运行 scripts/sync-upstream.sh 即可跟上`,
-        { duration: 8000 },
-      );
-    } else {
-      toast.success(
-        `官方 dev 无新提交，本构建基线 ${__SYNC_BASE_DATE__.slice(0, 10)} 已是最新同步`,
-      );
-    }
-  } catch {
-    toast.error("无法获取官方仓库信息，请检查网络后重试");
-  }
-};
-
 export const useUpdateStore = defineStore("update", () => {
   const snapshot = shallowRef<UpdateState | null>(null);
   const dialogOpen = ref(false);
@@ -90,10 +54,6 @@ export const useUpdateStore = defineStore("update", () => {
 
   /** 检查入口统一处理已有更新和商店安装形式。 */
   const checkManually = (): void => {
-    if (__IS_FORK_BUILD__) {
-      void checkOfficialDev();
-      return;
-    }
     if (mode.value === "store") {
       void window.api.update.openDownloadPage();
     } else if (hasUpdate.value && errorSource.value !== "download") {
