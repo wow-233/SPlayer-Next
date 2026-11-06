@@ -2,11 +2,14 @@
 /**
  * 副屏氛围屏
  *
- * 全屏展示「封面 + 上一句/当前歌词（含翻译）/下一句」，带背景模糊取色与逐字高亮。
- * 复用共享的 useNowPlayingSync 获取 track/lyric/playing/当前行；设置实时读取并响应变更。
+ * 全屏展示「封面 + 滚动歌词（lyric-dom 逐字弹簧动画引擎）」，带背景模糊取色。
+ * 复用共享的 useNowPlayingSync 获取 track/lyric/playing；设置实时读取并响应变更。
+ * 设置项映射：showTranslation → 逐行翻译；showPreviousLine → 已唱行隐藏；
+ * showNextLine → 未唱行透明度（关=只看当前行）。
  */
-import type { LyricLine } from "lyric-kit";
 import type { AmbianceSettings } from "@shared/types/settings";
+import { DEFAULTS, LyricRenderer } from "lyric-dom";
+import "lyric-dom/renderer.css";
 import { pickPrimaryIndex } from "lyric-kit";
 import { formatArtists } from "@shared/utils/track";
 import {
@@ -14,7 +17,7 @@ import {
   getNowPlayingCurrentMs,
 } from "@windows/shared/composables/useNowPlayingSync";
 
-const { track, lyric, playing, primaryIndex } = useNowPlayingSync({
+const { track, lyric, playing } = useNowPlayingSync({
   pickIndex: pickPrimaryIndex,
   logTag: "ambiance",
 });
@@ -29,21 +32,40 @@ const config = reactive<AmbianceSettings>({
   displayMode: "auto",
 });
 
-/** 高频当前时间（驱动逐字高亮） */
-const nowMs = ref(0);
+const lyricsEl = ref<HTMLElement>();
+let renderer: LyricRenderer | null = null;
 let raf = 0;
 let unsubConfig: (() => void) | null = null;
 
+/** 按设置推导渲染器外观配置 */
+const rendererConfig = () => ({
+  alignment: "center" as const,
+  alignPosition: 0.5,
+  showTranslation: config.showTranslation,
+  hidePassedLines: !config.showPreviousLine,
+  inactiveAlpha: config.showNextLine ? 0.38 : 0,
+  enableWordHighlight: true,
+  enableEmphasizeEffect: true,
+  enableBlur: true,
+  minInterludeGap: DEFAULTS.minInterludeGap,
+  breatheCycleTarget: DEFAULTS.breatheCycleTarget,
+});
+
+/** 把设置应用到渲染器 */
+const applyRendererConfig = (): void => {
+  renderer?.setConfig(rendererConfig());
+};
+
 const tick = (): void => {
-  nowMs.value = getNowPlayingCurrentMs();
+  renderer?.setCurrentTime(getNowPlayingCurrentMs());
   raf = requestAnimationFrame(tick);
 };
 
-/** 播放中才持续跑 RAF；暂停时冻结当前帧，恢复时先校正一帧再继续 */
+/** 播放中才持续驱动渲染器；暂停时冻结，恢复时先校正一帧再继续 */
 const syncRafLoop = (): void => {
   if (playing.value) {
     if (!raf) {
-      nowMs.value = getNowPlayingCurrentMs();
+      renderer?.setCurrentTime(getNowPlayingCurrentMs());
       raf = requestAnimationFrame(tick);
     }
   } else if (raf) {
@@ -52,7 +74,17 @@ const syncRafLoop = (): void => {
   }
 };
 
-watch(playing, syncRafLoop, { immediate: true });
+watch(playing, (value) => {
+  renderer?.setPlaying(value);
+  syncRafLoop();
+});
+
+watch(lyric, (lines) => renderer?.setLyrics(lines));
+
+watch(
+  () => ({ ...config }),
+  () => applyRendererConfig(),
+);
 
 onMounted(async () => {
   try {
@@ -61,48 +93,32 @@ onMounted(async () => {
   } catch (error) {
     console.error("[ambiance] load config failed", error);
   }
+  if (lyricsEl.value) {
+    renderer = new LyricRenderer(lyricsEl.value, rendererConfig());
+    renderer.setLyrics(lyric.value);
+    renderer.setPlaying(playing.value);
+    syncRafLoop();
+  }
   unsubConfig = window.api.window.onAmbianceConfigChange((next) => Object.assign(config, next));
 });
 
 onBeforeUnmount(() => {
   if (raf) cancelAnimationFrame(raf);
   raf = 0;
+  renderer?.dispose();
+  renderer = null;
   unsubConfig?.();
   unsubConfig = null;
 });
 
-const lineText = (line: LyricLine | null | undefined): string =>
-  line ? line.words.map((w) => w.word).join("") : "";
-
-const current = computed(() => (primaryIndex.value >= 0 ? lyric.value[primaryIndex.value] : null));
-const prev = computed(() => (primaryIndex.value > 0 ? lyric.value[primaryIndex.value - 1] : null));
-const next = computed(() => (primaryIndex.value >= 0 ? lyric.value[primaryIndex.value + 1] : null));
 const cover = computed(() => track.value?.coverOriginal ?? track.value?.cover ?? "");
 const title = computed(() => track.value?.title ?? "SPlayer-Next");
 const artists = computed(() => formatArtists(track.value?.artists) || "暂无播放");
 
-const currentText = computed(() => lineText(current.value));
-const prevText = computed(() => lineText(prev.value));
-const nextText = computed(() => lineText(next.value));
-const translationText = computed(() => current.value?.translatedLyric ?? "");
-const hasWordByWord = computed(() => (current.value?.words.length ?? 0) > 1);
-
-/**
- * 已播放词数：模板只依赖该值而非 nowMs，
- * 组件仅在跨越词时间边界时重新渲染（而非每帧）
- */
-const activeWordCount = computed(() => {
-  const line = current.value;
-  if (!line || line.words.length <= 1) return 0;
-  const ms = nowMs.value;
-  let count = 0;
-  for (const w of line.words) if (ms >= w.startTime) count += 1;
-  return count;
-});
-
 const rootStyle = computed(() => ({
   "--amb-blur": `${config.backgroundBlur}px`,
-  "--amb-scale": String(config.fontScale),
+  "--lp-font-size": `calc(clamp(1.8rem, 6vh, 4.2rem) * ${config.fontScale})`,
+  "--lp-color": "#fff",
 }));
 </script>
 
@@ -126,33 +142,8 @@ const rootStyle = computed(() => ({
         </div>
       </div>
 
-      <!-- 歌词 -->
-      <div class="lyrics">
-        <div v-if="config.showPreviousLine && prevText" class="line-prev">{{ prevText }}</div>
-
-        <div class="line-current">
-          <template v-if="current">
-            <template v-if="hasWordByWord">
-              <span
-                v-for="(w, i) in current.words"
-                :key="i"
-                class="word"
-                :class="{ played: i < activeWordCount }"
-              >
-                {{ w.word }}
-              </span>
-            </template>
-            <template v-else>{{ currentText }}</template>
-          </template>
-          <span v-else class="placeholder">{{ title }}</span>
-        </div>
-
-        <div v-if="config.showTranslation && translationText" class="line-translation">
-          {{ translationText }}
-        </div>
-
-        <div v-if="config.showNextLine && nextText" class="line-next">{{ nextText }}</div>
-      </div>
+      <!-- 歌词（lyric-dom 渲染器托管） -->
+      <div ref="lyricsEl" class="lyrics-view"></div>
     </div>
   </div>
 </template>
@@ -254,55 +245,13 @@ const rootStyle = computed(() => ({
   white-space: nowrap;
 }
 
-.lyrics {
+.lyrics-view {
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 46vw;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1.4vh;
-}
-
-.line-prev {
-  font-size: calc(clamp(1rem, 2.4vh, 1.6rem) * var(--amb-scale, 1));
-  opacity: 0.32;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.line-current {
-  font-size: calc(clamp(1.8rem, 6vh, 4.2rem) * var(--amb-scale, 1));
+  max-width: 52vw;
+  height: 78vh;
   font-weight: 700;
-  line-height: 1.25;
   text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
-}
-
-.word {
-  color: rgba(255, 255, 255, 0.38);
-  transition: color 0.18s ease;
-}
-
-.word.played {
-  color: #fff;
-}
-
-.line-translation {
-  font-size: calc(clamp(1rem, 2.6vh, 1.8rem) * var(--amb-scale, 1));
-  opacity: 0.72;
-}
-
-.line-next {
-  font-size: calc(clamp(1rem, 2.4vh, 1.7rem) * var(--amb-scale, 1));
-  opacity: 0.38;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.placeholder {
-  opacity: 0.5;
 }
 
 /* 竖屏 / 窄屏：改为纵向堆叠 */
@@ -311,10 +260,9 @@ const rootStyle = computed(() => ({
     flex-direction: column;
     gap: 4vh;
   }
-  .lyrics {
+  .lyrics-view {
     max-width: 86vw;
-    align-items: center;
-    text-align: center;
+    height: 52vh;
   }
   .cover {
     width: min(40vh, 62vw);
