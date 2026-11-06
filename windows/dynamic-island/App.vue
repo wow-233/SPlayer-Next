@@ -24,6 +24,7 @@ const config = reactive<DynamicIslandSettings>({
   snapCentered: true,
   notchFusion: false,
   nonOcclusive: false,
+  idleOpacity: 1,
   doubleLine: false,
   showTranslation: false,
   useCSSDrag: false,
@@ -487,6 +488,7 @@ const rootStyle = computed(() => ({
   "--di-fusion-content-width": `${Math.max(1, shapeWidth.value - SHAPE_SIDE_OVERHANG * 2)}px`,
   "--di-snap-radius": `${snapRadius.value}px`,
   "--di-lyric-scale": lyricScale.value,
+  "--di-idle-opacity": String(config.idleOpacity ?? 1),
   fontFamily: config.fontFamily || undefined,
   "-webkit-app-region": config.useCSSDrag ? "drag" : "no-drag",
 }));
@@ -580,6 +582,7 @@ onBeforeUnmount(() => {
       mode === 'snapped' ? 'is-snapped' : 'is-floating',
       {
         'is-hidden': config.nonOcclusive && hovering,
+        'is-dimmed': config.nonOcclusive && !hovering && (config.idleOpacity ?? 1) < 1,
         'is-notch-fusion': notchFusionEnabled,
         'is-smooth': config.transition === 'smooth',
       },
@@ -660,6 +663,10 @@ onBeforeUnmount(() => {
 /* opacity 不影响穿透判定，鼠标离开物理区域后自然恢复 */
 .root.is-hidden {
   opacity: 0;
+}
+/* 穿透模式下未悬停时半透明待机，鼠标靠近恢复不透明 */
+.root.is-dimmed {
+  opacity: var(--di-idle-opacity, 1);
 }
 .root.is-notch-fusion {
   width: 100%;

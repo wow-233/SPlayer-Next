@@ -1567,6 +1567,10 @@
       "label": "Non-Occlusive Mode",
       "description": "Click-through window; hide on hover"
     },
+    "dynamicIslandIdleOpacity": {
+      "label": "Idle Opacity When Locked",
+      "description": "Overall opacity while click-through is on and the cursor is away; fades back to full opacity on hover"
+    },
     "dynamicIslandUseCSSDrag": {
       "label": "Enable CSS Drag",
       "description": "Enable CSS-based drag, recommended for Wayland environments"

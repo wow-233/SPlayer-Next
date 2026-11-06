@@ -5,7 +5,7 @@ import { createWindow } from "./create";
 import { store } from "@main/store";
 import { broadcast } from "@main/utils/broadcast";
 import { isMac } from "@main/utils/config";
-import { setTrayDynamicIsland } from "@main/services/tray";
+import { setTrayDynamicIsland, refreshTray } from "@main/services/tray";
 import { isAppQuitting } from "@main/utils/lifecycle";
 import { DYNAMIC_ISLAND_BASE_HEIGHT } from "@shared/defaults/settings";
 
@@ -236,6 +236,20 @@ export const applyDynamicIslandNonOcclusive = (enabled: boolean): void => {
   } else {
     stopCursorPolling();
   }
+};
+
+/**
+ * 托盘快捷切换穿透（锁定）：写设置并复用统一配置管线
+ * 关闭窗口时仅改设置，下次创建时按 ready-to-show 的既有逻辑生效
+ * @returns 切换后的穿透开关状态
+ */
+export const toggleDynamicIslandClickThrough = (): boolean => {
+  const next = !store.get("dynamicIsland").nonOcclusive;
+  store.set("dynamicIsland.nonOcclusive", next);
+  applyDynamicIslandNonOcclusive(next);
+  broadcast("dynamicIsland:configChange", store.get("dynamicIsland"));
+  refreshTray();
+  return next;
 };
 
 /**

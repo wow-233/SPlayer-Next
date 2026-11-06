@@ -243,6 +243,17 @@ const dynamicIslandSection: SettingSection = {
       defaultValue: false,
     },
     {
+      key: "dynamicIslandIdleOpacity",
+      type: "slider",
+      binding: { store: "settings", path: "system.dynamicIsland.idleOpacity" },
+      min: 0.15,
+      max: 1,
+      step: 0.05,
+      defaultValue: 1,
+      marks: { 0.15: "15%", 0.5: "50%", 1: "100%" },
+      disabled: () => !useSettingsStore().system.dynamicIsland.nonOcclusive,
+    },
+    {
       key: "dynamicIslandUseCSSDrag",
       type: "switch",
       binding: { store: "settings", path: "system.dynamicIsland.useCSSDrag" },

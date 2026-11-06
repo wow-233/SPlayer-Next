@@ -1567,6 +1567,10 @@
       "label": "非遮挡模式",
       "description": "鼠标穿透窗口，悬停时隐藏内容"
     },
+    "dynamicIslandIdleOpacity": {
+      "label": "穿透待机透明度",
+      "description": "穿透（锁定）模式下未悬停时的整体不透明度，鼠标靠近恢复不透明"
+    },
     "dynamicIslandUseCSSDrag": {
       "label": "使用 CSS 拖拽",
       "description": "使用 CSS -webkit-app-region 拖拽，在 Wayland 环境建议启用"

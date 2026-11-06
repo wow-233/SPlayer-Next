@@ -44,6 +44,7 @@ export {
   applyDynamicIslandSnapCentered,
   applyDynamicIslandNotchFusion,
   applyDynamicIslandNonOcclusive,
+  toggleDynamicIslandClickThrough,
   moveDynamicIslandWindow,
   saveDynamicIslandState,
 } from "./dynamicIsland";

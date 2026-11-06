@@ -119,6 +119,14 @@ describe.each(["win32", "linux"])("统一更新任务（%s）", (platform) => {
     const updater = (await import("electron-updater")).default.autoUpdater;
     expect(updater.channel).toBe("latest");
     expect(updater.allowDowngrade).toBe(false);
+    expect(mocks.feed).toHaveBeenCalledWith({
+      provider: "github",
+      owner: "wow-233",
+      repo: "SPlayer-Next",
+    });
+    expect(service.getUpdateState().meta?.releaseUrl).toBe(
+      "https://github.com/wow-233/SPlayer-Next/releases/tag/v1.3.0",
+    );
     expect(service.getUpdateState().channel).toBe("stable");
     service.downloadUpdate();
     await flushPromises();
