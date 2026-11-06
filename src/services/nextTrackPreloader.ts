@@ -13,6 +13,7 @@ import { useStreamingStore } from "@/stores/streaming";
 import { usePluginsStore } from "@/stores/plugins";
 import { useMediaStore } from "@/stores/media";
 import * as queue from "@/stores/queue";
+import { togetherRoom } from "@/services/listenTogether";
 import { isAutoMixReady, connectAutoMixComponents } from "@/services/automix";
 import { AUTOMIX_ARM_LEAD_MS } from "@shared/constants/playback";
 
@@ -228,14 +229,21 @@ export const scheduleNextTrackPreload = (): void => {
     invalidateNextTrackPreload();
     return;
   }
-  const candidateResult = getNextTrackCandidate({
-    playIndex: status.playIndex,
-    queue: queue.queue.value,
-    fmMode: status.fmMode,
-    skipKeywordsSongs: settings.preset.skipKeywordsSongs,
-    skipTrackKeywords: settings.preset.skipTrackKeywords,
-    shuffleMode: status.shuffleMode,
-  });
+  const candidateResult = togetherRoom.value.inRoom
+    ? // 一起听房间：预载房间待播首曲（仅网易云），本地队列顺序不作数；
+      // 房间派发同曲时 loadTrack 命中槽位即时起播，派发异曲则作废重载
+      (() => {
+        const roomNext = togetherRoom.value.queue[0]?.track;
+        return roomNext && roomNext.source === "netease" ? { track: roomNext, index: 0 } : null;
+      })()
+    : getNextTrackCandidate({
+        playIndex: status.playIndex,
+        queue: queue.queue.value,
+        fmMode: status.fmMode,
+        skipKeywordsSongs: settings.preset.skipKeywordsSongs,
+        skipTrackKeywords: settings.preset.skipTrackKeywords,
+        shuffleMode: status.shuffleMode,
+      });
 
   if (!candidateResult) {
     invalidateNextTrackPreload();
@@ -359,6 +367,9 @@ export const installNextTrackPreloadWatchers = (): void => {
       status.state,
       status.fmMode,
       status.shuffleMode,
+      // 一起听房间队列变化（派歌/置顶）需要重调预载候选
+      togetherRoom.value.inRoom,
+      togetherRoom.value.queue[0]?.track?.id ?? "",
       settings.preset.skipKeywordsSongs,
       settings.preset.skipTrackKeywords.join(","),
       queue.queue.value,
