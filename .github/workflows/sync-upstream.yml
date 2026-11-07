@@ -36,10 +36,15 @@ jobs:
           fi
           echo "官方 dev 新提交数: $(git rev-list --count HEAD..upstream/dev)"
           git rebase upstream/dev
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          cache: pnpm
       - name: Verify (typecheck + web tests)
         run: |
-          curl -fsSL https://pnpm.io/install.sh | sh -
-          echo "$HOME/.local/share/pnpm" >> "$GITHUB_PATH"
           pnpm install --ignore-scripts
           pnpm typecheck
           pnpm test:web
